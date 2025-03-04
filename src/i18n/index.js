@@ -21,7 +21,11 @@ const enTranslations = {
   duration: 'Duration',
   identitiesInFolder: 'Number of identities in this folder',
   copied: 'Copied UUID:',
-  language: 'Language'
+  language: 'Language',
+  captureCount: 'Capture Count',
+  copyUUID: 'Copy UUID',
+  markAsNew: 'Mark as New Identity',
+  alreadyMarked: 'Already Marked as New'
 };
 
 // 中文翻译资源
@@ -44,7 +48,11 @@ const zhTranslations = {
   duration: '持续时间',
   identitiesInFolder: '此文件夹包含的身份数量',
   copied: '已复制UUID:',
-  language: '语言'
+  language: '语言',
+  captureCount: '捕获次数',
+  copyUUID: '复制UUID',
+  markAsNew: '标记为新身份',
+  alreadyMarked: '已标记为新身份'
 };
 
 // 初始化i18n

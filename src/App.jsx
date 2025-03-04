@@ -521,7 +521,7 @@ const App = () => {
                           UUID: {image.uuid.substring(0, 8)}...
                         </Typography>
                         <Typography variant="caption" display="block">
-                          捕获次数: {image.count}
+                          {t('captureCount')}: {image.count}
                         </Typography>
                         <Button 
                           size="small" 
@@ -530,7 +530,7 @@ const App = () => {
                           onClick={() => copyUUID(image.uuid)}
                           sx={{ fontSize: '0.7rem', mt: 1 }}
                         >
-                          复制UUID
+                          {t('copyUUID')}
                         </Button>
                         <Button 
                           size="small" 
@@ -540,7 +540,7 @@ const App = () => {
                           onClick={() => toggleNewIdentity(index, folder.images.indexOf(image))}
                           sx={{ fontSize: '0.7rem', mt: 1 }}
                         >
-                          {image.isNewIdentity ? "已标记为新身份" : "标记为新身份"}
+                          {image.isNewIdentity ? t('alreadyMarked') : t('markAsNew')}
                         </Button>
                       </Box>
                     </Grid>
