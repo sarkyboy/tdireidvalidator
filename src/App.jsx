@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Box, Container, Typography, Button, Slider, Paper, Grid, Modal, Tooltip, Alert, Snackbar, CircularProgress, Dialog, DialogContent, DialogContentText, ToggleButton, ToggleButtonGroup } from '@mui/material';
 import { v4 as uuidv4 } from 'uuid';
 
 const App = () => {
+  const { t, i18n } = useTranslation();
   const objectUrlsRef = useRef([]);
   const [folders, setFolders] = useState([]);
   const [totalUUIDFolders, setTotalUUIDFolders] = useState(0);
@@ -15,6 +17,7 @@ const App = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [overMerged, setOverMerged] = useState(0);
   const [underMerged, setUnderMerged] = useState(0);
+  const [language, setLanguage] = useState('en'); // 默认语言为英文
 
   const extractImageUUID = (name) => {
     const re = /[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/;
@@ -329,7 +332,7 @@ const App = () => {
     navigator.clipboard.writeText(uuid).then(() => {
       setNotification({
         open: true,
-        message: `已复制UUID: ${uuid}`
+        message: `${t('copied')} ${uuid}`
       });
     });
   };
@@ -353,9 +356,25 @@ const App = () => {
   return (
     <Container maxWidth="lg">
       <Box sx={{ my: 4 }}>
-        <Typography variant="h4" component="h1" gutterBottom>
-          ReID Analysis Tool
-        </Typography>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+          <Typography variant="h4" component="h1" gutterBottom>
+            {t('title')}
+          </Typography>
+          <ToggleButtonGroup
+            value={language}
+            exclusive
+            onChange={(_, newLang) => {
+              if (newLang) {
+                setLanguage(newLang);
+                i18n.changeLanguage(newLang);
+              }
+            }}
+            size="small"
+          >
+            <ToggleButton value="en">EN</ToggleButton>
+            <ToggleButton value="zh">中</ToggleButton>
+          </ToggleButtonGroup>
+        </Box>
         
         <Button
           variant="contained"
@@ -364,13 +383,13 @@ const App = () => {
           sx={{ mb: 3, mr: 2 }}
           disabled={isLoading}
         >
-          选择图片文件夹
+          {t('selectFolder')}
         </Button>
 
         <Dialog open={isLoading} disableEscapeKeyDown>
           <DialogContent sx={{ textAlign: 'center', p: 4 }}>
             <CircularProgress sx={{ mb: 2 }} />
-            <DialogContentText>正在处理图片文件，请稍候...</DialogContentText>
+            <DialogContentText>{t('processing')}</DialogContentText>
           </DialogContent>
         </Dialog>
 
@@ -378,34 +397,34 @@ const App = () => {
 
         <Paper sx={{ p: 2, mb: 3 }}>
           <Typography variant="h6" gutterBottom>
-            统计信息
+            {t('statistics')}
           </Typography>
           <Grid container spacing={2}>
             <Grid item xs={12} sm={6} md={4}>
-              <Typography>总身份数: {totalUUIDFolders}</Typography>
+              <Typography>{t('totalIdentities')}: {totalUUIDFolders}</Typography>
             </Grid>
             <Grid item xs={12} sm={6} md={4}>
-              <Typography>已验证身份数: {totalCountInput}</Typography>
+              <Typography>{t('verifiedIdentities')}: {totalCountInput}</Typography>
             </Grid>
             <Grid item xs={12} sm={6} md={4}>
-              <Typography>识别率: {recognitionPercentage}</Typography>
+              <Typography>{t('recognitionRate')}: {recognitionPercentage}</Typography>
             </Grid>
             <Grid item xs={12} sm={6} md={4}>
-              <Typography>过度合并(OverMerged): {overMerged}</Typography>
+              <Typography>{t('overMerged')}: {overMerged}</Typography>
             </Grid>
             <Grid item xs={12} sm={6} md={4}>
-              <Typography>欠合并(UnderMerged): {underMerged}</Typography>
+              <Typography>{t('underMerged')}: {underMerged}</Typography>
             </Grid>
             <Grid item xs={12} sm={12} md={12}>
               <Typography variant="caption">
-                准确率计算公式: (1 - (OverMerged + UnderMerged) / TotalRecognized) * 100%
+                {t('accuracyFormula')}
               </Typography>
             </Grid>
           </Grid>
         </Paper>
 
         <Paper sx={{ p: 2, mb: 3 }}>
-          <Typography gutterBottom>按停留时间筛选 (分钟)</Typography>
+          <Typography gutterBottom>{t('filterByDuration')}</Typography>
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
             <Slider
               value={durationFilter}
@@ -417,7 +436,7 @@ const App = () => {
               sx={{ flex: 1, mx: 2 }}
             />
             <Typography variant="body2" sx={{ minWidth: 80 }}>
-              {durationFilter} 分钟
+              {durationFilter} {t('minutes')}
             </Typography>
           </Box>
         </Paper>
@@ -442,7 +461,7 @@ const App = () => {
             overflow: 'auto'
           }}>
             <Typography id="modal-title" variant="h6" component="h2" gutterBottom>
-              所有相关图片
+              {t('relatedImages')}
             </Typography>
             <Grid container spacing={1}>
               {currentImages.map((imgUrl, idx) => (
@@ -473,12 +492,12 @@ const App = () => {
                 <Typography variant="h6">{folder.folderUUID}</Typography>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                   <Typography variant="body2">
-                    开始时间: {folder.firstImageName} | 结束时间: {folder.lastImageName} | 持续时间: {folder.duration}
+                    {t('startTime')}: {folder.firstImageName} | {t('endTime')}: {folder.lastImageName} | {t('duration')}: {folder.duration}
                   </Typography>
                 </Box>
                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                   <Typography variant="body2" sx={{ mr: 1 }}>
-                    此文件夹包含的身份数量:
+                    {t('identitiesInFolder')}:
                   </Typography>
                   <input 
                     type="number" 
