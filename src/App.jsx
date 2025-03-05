@@ -26,8 +26,11 @@ const App = () => {
   };
 
   const isUUIDFolder = (name) => {
-    const re = /^\d{6}_[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
-    return re.test(name);
+    // 原始格式：6位数字_UUID
+    const reOriginal = /^\d{6}_[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
+    // 纯UUID格式
+    const reUUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
+    return reOriginal.test(name) || reUUID.test(name);
   };
 
   const handleFolderSelect = async () => {
