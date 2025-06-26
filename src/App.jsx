@@ -20,7 +20,7 @@ import PercentIcon from '@mui/icons-material/Percent';
 import Brightness4Icon from '@mui/icons-material/Brightness4';
 import Brightness7Icon from '@mui/icons-material/Brightness7';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
-import HelpOutlineIcon from '@mui/icons-material/HelpOutline'; // 新增
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import { v4 as uuidv4 } from 'uuid';
 
 const TEXTS = {
@@ -82,15 +82,18 @@ const TEXTS = {
   reset: 'Reset',
   totalIdentitiesTooltip: 'The total number of unique top-level UUID folders found in the selected directory.',
   incompleteFoldersTooltip: 'The number of folders where not all Track IDs have been assigned to a person.',
-  reIdAccuracyTooltip: 'Calculated as (Correct UUIDs / Total UUID Folders). Green: >= 85%, Yellow: 75%-85%, Red: < 75%.',
+  reIdAccuracyTooltip: 'Calculated as (Correct UUIDs / Adjusted Total Folders). Green: >= 85%, Yellow: 75%-85%, Red: < 75%.',
   correctUUIDsTooltip: 'The number of folders that contain exactly one "Assigned Person" group.',
   falseNegativeTooltip: 'The number of folders that contain more than one "Assigned Person" group, indicating a potential merge is needed.',
   falsePositiveTooltip: 'The number of folders where at least one person is linked to an external UUID, indicating a potential split is needed.',
-  userManual: 'User Manual', // 新增
-  userManualTitle: 'User Manual Guide', // 新增
-  userManualContent: 'For detailed instructions, please log in to the official documentation site and navigate to "Tools -> Re-ID Accuracy Analysis Tool".', // 新增
-  userManualLinkText: 'Go to www.tdintelligence.wiki', // 新增
-  close: 'Close', // 新增
+  userManual: 'User Manual',
+  userManualTitle: 'User Manual Guide',
+  userManualContent: 'For detailed instructions, please log in to the official documentation site and navigate to "Tools -> Re-ID Accuracy Analysis Tool".',
+  userManualLinkText: 'Go to www.tdintelligence.wiki',
+  close: 'Close',
+  adjustTotal: 'Adjust Total Identities',
+  missedPeopleLabel: 'Number of people not captured',
+  missedPeopleHelper: 'Enter a number to compensate for missed identities in accuracy calculation.',
 };
 
 // --- Reusable TrackID Card Component ---
@@ -108,19 +111,22 @@ const TrackIDCard = ({ image, sx, onClick }) => {
 };
 
 // --- Reusable Stat Item Component ---
-const StatItem = ({ icon, label, tooltipText, value, valueSx, onClick }) => {
+const StatItem = ({ icon, label, tooltipText, value, valueSx, onClick, onEdit }) => {
   const ValueComponent = onClick ? Link : Box;
   return (
     <Grid item xs={12} sm={6} md={4}>
       <Paper variant="outlined" sx={{ p: 2, display: 'flex', alignItems: 'center', height: '100%' }}>
         <Box sx={{ mr: 2, color: 'text.secondary' }}>{icon}</Box>
-        <Box>
+        <Box sx={{ flexGrow: 1 }}>
             <Box sx={{display: 'flex', alignItems: 'center', gap: 0.5}}>
                 <Typography variant="body1" color="text.secondary">{label}</Typography>
                 <Tooltip title={tooltipText}><InfoOutlinedIcon sx={{fontSize: '1rem', color: 'action.active', cursor: 'help'}}/></Tooltip>
             </Box>
           <ValueComponent component={onClick ? 'button' : 'div'} onClick={onClick} sx={{ fontSize: '1.75rem', fontWeight: 'bold', lineHeight: 1.2, color: 'text.primary', cursor: onClick ? 'pointer' : 'default', textDecoration: 'none', '&:hover': { textDecoration: onClick ? 'underline': 'none' }, ...valueSx }}>{value}</ValueComponent>
         </Box>
+        {onEdit && <Tooltip title={TEXTS.adjustTotal}>
+            <IconButton onClick={onEdit} size="small"><EditIcon fontSize="small" /></IconButton>
+        </Tooltip>}
       </Paper>
     </Grid>
   );
@@ -146,11 +152,33 @@ function AppContent({ onToggleTheme, themeMode }) {
   const [linkState, setLinkState] = useState({ isOpen: false, personId: null, folderIndex: null, inputValue: '', error: '' });
   const [navigation, setNavigation] = useState({ isActive: false, targets: [], currentIndex: -1 });
   const [filters, setFilters] = useState({ durationLessThan: '', durationMoreThan: '', showFalseNegative: false, showFalsePositive: false });
+  const [missedPeopleCount, setMissedPeopleCount] = useState(0);
+  const [isMissedPeopleDialogOpen, setIsMissedPeopleDialogOpen] = useState(false);
+  const [missedPeopleInput, setMissedPeopleInput] = useState('0');
 
-  // --- Logic Functions (no changes) ---
+  // --- Logic Functions ---
   const extractImageUUID = (name) => { const re = /[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/; const match = name.match(re); return match ? match[0] : null; };
   const isUUIDFolder = (name) => { const reOriginal = /^\d{6}_[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/; const reUUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/; return reOriginal.test(name) || reUUID.test(name); };
-  const handleFolderSelect = async () => { try { setIsLoading(true); objectUrlsRef.current.forEach(URL.revokeObjectURL); objectUrlsRef.current = []; folderRefs.current.clear(); const dirHandle = await window.showDirectoryPicker(); const processedFolders = await processDirectory(dirHandle); setFolders(processedFolders); setTotalUUIDFolders(processedFolders.length); } catch (error) { if (error.name !== 'AbortError') console.error('Error selecting folder:', error); } finally { setIsLoading(false); } };
+
+  const handleFolderSelect = async () => {
+    try {
+      setIsLoading(true);
+      objectUrlsRef.current.forEach(URL.revokeObjectURL);
+      objectUrlsRef.current = [];
+      folderRefs.current.clear();
+      setMissedPeopleCount(0);
+      setMissedPeopleInput('0');
+      const dirHandle = await window.showDirectoryPicker();
+      const processedFolders = await processDirectory(dirHandle);
+      setFolders(processedFolders);
+      setTotalUUIDFolders(processedFolders.length);
+    } catch (error) {
+      if (error.name !== 'AbortError') console.error('Error selecting folder:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const processDirectory = async (dirHandle, path = '') => { const entries = []; for await (const entry of dirHandle.values()) { if (entry.kind === 'directory') { if (isUUIDFolder(entry.name)) { entries.push(await processUUIDFolder(entry, path + '/' + entry.name)); } else { entries.push(...await processDirectory(entry, path + '/' + entry.name)); } } } return entries; };
   const processUUIDFolder = async (dirHandle, path) => {
     const imageMap = new Map();
@@ -215,9 +243,41 @@ function AppContent({ onToggleTheme, themeMode }) {
   const handleCancelRename = () => setRenamingState({ personId: null, currentName: '' });
   const handleSaveRename = () => { if (!renamingState.personId) return; setFolders(prevFolders => prevFolders.map(folder => ({ ...folder, newPeople: folder.newPeople.map(person => person.id === renamingState.personId ? { ...person, name: renamingState.currentName } : person) }))); handleCancelRename(); };
   const handleRenameKeyDown = (e) => { if (e.key === 'Enter') handleSaveRename(); if (e.key === 'Escape') handleCancelRename(); };
-  const handleExportProgress = () => { if (folders.length === 0) { setNotification({ open: true, message: TEXTS.noProgressToSave }); return; } const dataToSave = folders.map(folder => ({ folderUUID: folder.folderUUID, newPeople: folder.newPeople })); const jsonString = JSON.stringify(dataToSave, null, 2); const blob = new Blob([jsonString], { type: 'application/json' }); const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = 'progress.dat'; document.body.appendChild(link); link.click(); document.body.removeChild(link); URL.revokeObjectURL(url); };
+  const handleExportProgress = () => { if (folders.length === 0) { setNotification({ open: true, message: TEXTS.noProgressToSave }); return; } const dataToSave = { version: 1, missedPeopleCount: missedPeopleCount, foldersData: folders.map(folder => ({ folderUUID: folder.folderUUID, newPeople: folder.newPeople })) }; const jsonString = JSON.stringify(dataToSave, null, 2); const blob = new Blob([jsonString], { type: 'application/json' }); const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = 'progress.dat'; document.body.appendChild(link); link.click(); document.body.removeChild(link); URL.revokeObjectURL(url); };
   const handleImportClick = () => { if (folders.length === 0) { setNotification({ open: true, message: TEXTS.loadFolderFirst }); return; } fileInputRef.current.click(); };
-  const handleFileSelected = (event) => { const file = event.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (e) => { try { const importedData = JSON.parse(e.target.result); if (!Array.isArray(importedData)) throw new Error("Invalid format"); const importMap = new Map(importedData.map(item => [item.folderUUID, item.newPeople])); setFolders(currentFolders => currentFolders.map(folder => importMap.has(folder.folderUUID) ? { ...folder, newPeople: importMap.get(folder.folderUUID) } : folder)); setNotification({ open: true, message: TEXTS.importSuccess }); } catch (error) { setNotification({ open: true, message: TEXTS.importError }); console.error("Error parsing imported file:", error); } }; reader.readAsText(file); event.target.value = null; };
+  const handleFileSelected = (event) => {
+    const file = event.target.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const importedData = JSON.parse(e.target.result);
+            let foldersFromImport = [];
+            let missedCountFromImport = 0;
+            // Handle new and old formats
+            if (Array.isArray(importedData)) {
+                foldersFromImport = importedData;
+            } else if (typeof importedData === 'object' && importedData !== null && 'foldersData' in importedData) {
+                foldersFromImport = importedData.foldersData;
+                missedCountFromImport = importedData.missedPeopleCount || 0;
+            } else {
+                throw new Error("Invalid format");
+            }
+            if (!Array.isArray(foldersFromImport)) throw new Error("Invalid format");
+            
+            setMissedPeopleCount(missedCountFromImport);
+            setMissedPeopleInput(String(missedCountFromImport));
+
+            const importMap = new Map(foldersFromImport.map(item => [item.folderUUID, item.newPeople]));
+            setFolders(currentFolders => currentFolders.map(folder => importMap.has(folder.folderUUID) ? { ...folder, newPeople: importMap.get(folder.folderUUID) } : folder));
+            setNotification({ open: true, message: TEXTS.importSuccess });
+        } catch (error) {
+            setNotification({ open: true, message: TEXTS.importError });
+            console.error("Error parsing imported file:", error);
+        }
+    };
+    reader.readAsText(file);
+    event.target.value = null;
+  };
   const handleGenerateTemporaryUUID = (folderIndex, personId) => { setFolders(prevFolders => { const newFolders = JSON.parse(JSON.stringify(prevFolders)); const person = newFolders[folderIndex].newPeople.find(p => p.id === personId); if (person && !person.temporaryUUID) person.temporaryUUID = uuidv4(); return newFolders; }); };
   const handleDeleteTemporaryUUID = (folderIndex, personId) => { const uuidToDelete = folders[folderIndex]?.newPeople.find(p => p.id === personId)?.temporaryUUID; if (!uuidToDelete) return; setFolders(prevFolders => { const newFolders = JSON.parse(JSON.stringify(prevFolders)); for (const folder of newFolders) { for (const person of folder.newPeople) { if (person.id === personId) person.temporaryUUID = null; if (person.linkedFolderUUID === uuidToDelete) person.linkedFolderUUID = null; } } return newFolders; }); };
   const handleOpenLinkDialog = (person, folderIndex) => { setLinkState({ isOpen: true, personId: person.id, folderIndex, inputValue: person.linkedFolderUUID || '', error: '' }); };
@@ -226,11 +286,18 @@ function AppContent({ onToggleTheme, themeMode }) {
   const handleUnlink = (personId, folderIndex) => { setFolders(prevFolders => prevFolders.map((folder, fIndex) => fIndex !== folderIndex ? folder : { ...folder, newPeople: folder.newPeople.map(p => p.id === personId ? { ...p, linkedFolderUUID: null } : p) })); };
   const handleScrollToUUID = (uuid) => { const node = folderRefs.current.get(uuid); if (node) { node.scrollIntoView({ behavior: 'smooth', block: 'start' }); } else { let targetFolderUUID = null; for (const folder of folders) { for (const person of folder.newPeople) { if (person.temporaryUUID === uuid) { targetFolderUUID = folder.folderUUID; break; } } if (targetFolderUUID) break; } if (targetFolderUUID) handleScrollToUUID(targetFolderUUID); else setNotification({ open: true, message: `Could not find folder for UUID: ${uuid}` }); } };
   
+  const handleFilterChange = (e) => { const { name, value, type, checked } = e.target; setFilters(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value })); };
+  const handleResetFilters = () => { setFilters({ durationLessThan: '', durationMoreThan: '', showFalseNegative: false, showFalsePositive: false }); };
+  const handleSaveMissedPeople = () => { setMissedPeopleCount(parseInt(missedPeopleInput, 10) || 0); setIsMissedPeopleDialogOpen(false); };
+
   const incompleteFolders = folders.filter(folder => { if (folder.images.length === 0) return false; const assignedTracksCount = new Set(folder.newPeople.flatMap(p => p.assignedTracks)).size; return assignedTracksCount < folder.images.length; });
   const correctFolders = folders.filter(f => f.newPeople.length === 1);
   const falseNegativeFolders = folders.filter(f => f.newPeople.length > 1);
   const falsePositiveFolders = folders.filter(f => f.newPeople.some(p => p.linkedFolderUUID));
-  const reIdAccuracy = totalUUIDFolders > 0 ? (correctFolders.length / totalUUIDFolders) * 100 : 0;
+  
+  const adjustedTotal = totalUUIDFolders + missedPeopleCount;
+  const reIdAccuracy = adjustedTotal > 0 ? (correctFolders.length / adjustedTotal) * 100 : 0;
+  
   let accuracyColor = 'success.main';
   if (reIdAccuracy < 75) accuracyColor = 'error.main';
   else if (reIdAccuracy < 85) accuracyColor = 'warning.main';
@@ -238,8 +305,6 @@ function AppContent({ onToggleTheme, themeMode }) {
   const handleNavNext = () => { const { targets, currentIndex } = navigation; if (currentIndex < targets.length - 1) { const nextIndex = currentIndex + 1; handleScrollToUUID(targets[nextIndex]); setNavigation(nav => ({...nav, currentIndex: nextIndex})); } };
   const handleNavPrev = () => { const { currentIndex } = navigation; if (currentIndex > 0) { const prevIndex = currentIndex - 1; handleScrollToUUID(navigation.targets[prevIndex]); setNavigation(nav => ({...nav, currentIndex: prevIndex})); } };
   const handleCloseNavigation = () => setNavigation({ isActive: false, targets: [], currentIndex: -1 });
-  const handleFilterChange = (e) => { const { name, value, type, checked } = e.target; setFilters(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value })); };
-  const handleResetFilters = () => { setFilters({ durationLessThan: '', durationMoreThan: '', showFalseNegative: false, showFalsePositive: false }); };
   const filteredFolders = useMemo(() => { return folders.filter(folder => { const duration = folder.appearData?.durationInMinutes; if (filters.durationLessThan && (duration === undefined || duration >= parseInt(filters.durationLessThan, 10))) return false; if (filters.durationMoreThan && (duration === undefined || duration <= parseInt(filters.durationMoreThan, 10))) return false; if (filters.showFalseNegative && folder.newPeople.length <= 1) return false; if (filters.showFalsePositive && !folder.newPeople.some(p => p.linkedFolderUUID)) return false; return true; }); }, [folders, filters]);
 
   return (
@@ -263,7 +328,7 @@ function AppContent({ onToggleTheme, themeMode }) {
         
         <Paper sx={{ p: 2, mb: 3 }}>
           <Grid container spacing={2}>
-            <StatItem icon={<FolderCopyIcon fontSize="large"/>} label={TEXTS.totalIdentities} tooltipText={TEXTS.totalIdentitiesTooltip} value={totalUUIDFolders} />
+            <StatItem icon={<FolderCopyIcon fontSize="large"/>} label={TEXTS.totalIdentities} tooltipText={TEXTS.totalIdentitiesTooltip} value={<>{adjustedTotal} {missedPeopleCount > 0 && <Box component="span" sx={{fontSize: '1rem', fontWeight: 'normal'}}>({totalUUIDFolders} + {missedPeopleCount})</Box>}</>} onEdit={() => { setMissedPeopleInput(String(missedPeopleCount)); setIsMissedPeopleDialogOpen(true); }}/>
             <StatItem icon={<ReportProblemIcon fontSize="large"/>} label={TEXTS.incompleteFolders} tooltipText={TEXTS.incompleteFoldersTooltip} value={incompleteFolders.length} onClick={() => startNavigation(incompleteFolders)} valueSx={{color: incompleteFolders.length > 0 ? 'error.main' : 'text.primary'}} />
             <StatItem icon={<PercentIcon fontSize="large"/>} label={TEXTS.reIdAccuracy} tooltipText={TEXTS.reIdAccuracyTooltip} value={`${reIdAccuracy.toFixed(2)}%`} valueSx={{color: accuracyColor}}/>
             <StatItem icon={<CheckCircleOutlineIcon fontSize="large"/>} label={TEXTS.correctUUIDs} tooltipText={TEXTS.correctUUIDsTooltip} value={correctFolders.length} onClick={() => startNavigation(correctFolders)}/>
@@ -325,40 +390,19 @@ function AppContent({ onToggleTheme, themeMode }) {
         </Grid>
       </Box>
 
-      {navigation.isActive && (
-        <Paper elevation={4} sx={{ position: 'fixed', bottom: 24, right: 24, p: 1, display: 'flex', flexDirection: 'column', gap: 1, zIndex: 'tooltip' }}>
-            <IconButton onClick={handleNavPrev} disabled={navigation.currentIndex <= 0}><KeyboardArrowUpIcon /></IconButton>
-            <Typography align="center" variant="body2">{`${navigation.currentIndex + 1} / ${navigation.targets.length}`}</Typography>
-            <IconButton onClick={handleNavNext} disabled={navigation.currentIndex >= navigation.targets.length - 1}><KeyboardArrowDownIcon /></IconButton>
-            <Divider />
-            <Tooltip title={TEXTS.closeNavigation}><IconButton onClick={handleCloseNavigation} size="small"><CloseIcon fontSize="small" /></IconButton></Tooltip>
-        </Paper>
-      )}
-
-      {/* Dialogs */}
+      {navigation.isActive && ( <Paper elevation={4} sx={{ position: 'fixed', bottom: 24, right: 24, p: 1, display: 'flex', flexDirection: 'column', gap: 1, zIndex: 'tooltip' }}> <IconButton onClick={handleNavPrev} disabled={navigation.currentIndex <= 0}><KeyboardArrowUpIcon /></IconButton> <Typography align="center" variant="body2">{`${navigation.currentIndex + 1} / ${navigation.targets.length}`}</Typography> <IconButton onClick={handleNavNext} disabled={navigation.currentIndex >= navigation.targets.length - 1}><KeyboardArrowDownIcon /></IconButton> <Divider /> <Tooltip title={TEXTS.closeNavigation}><IconButton onClick={handleCloseNavigation} size="small"><CloseIcon fontSize="small" /></IconButton></Tooltip> </Paper> )}
       <Dialog open={linkState.isOpen} onClose={handleCloseLinkDialog} fullWidth maxWidth="sm"><DialogTitle>{TEXTS.linkToUUID}</DialogTitle><DialogContent><DialogContentText sx={{mb: 2}}>{TEXTS.enterUUID}</DialogContentText><TextField autoFocus margin="dense" id="uuid-link-input" label="Folder or Person UUID" type="text" fullWidth variant="outlined" value={linkState.inputValue} onChange={(e) => setLinkState(s => ({...s, inputValue: e.target.value, error: ''}))} error={!!linkState.error} helperText={linkState.error}/></DialogContent><DialogActions><Button onClick={handleCloseLinkDialog}>{TEXTS.cancel}</Button><Button onClick={handleSaveLink} variant="contained">{TEXTS.save}</Button></DialogActions></Dialog>
       <Dialog open={manualOpen} onClose={() => setManualOpen(false)}><DialogTitle>{TEXTS.userManualTitle}</DialogTitle><DialogContent><DialogContentText>{TEXTS.userManualContent}</DialogContentText><Link href="http://www.tdintelligence.wiki" target="_blank" rel="noopener noreferrer" sx={{mt: 2, display: 'block'}}>{TEXTS.userManualLinkText}</Link></DialogContent><DialogActions><Button onClick={() => setManualOpen(false)}>{TEXTS.close}</Button></DialogActions></Dialog>
+      <Dialog open={isMissedPeopleDialogOpen} onClose={() => setIsMissedPeopleDialogOpen(false)}><DialogTitle>{TEXTS.adjustTotal}</DialogTitle><DialogContent><DialogContentText>{TEXTS.missedPeopleHelper}</DialogContentText><TextField autoFocus margin="dense" label={TEXTS.missedPeopleLabel} type="number" fullWidth variant="standard" value={missedPeopleInput} onChange={(e) => setMissedPeopleInput(e.target.value)}/></DialogContent><DialogActions><Button onClick={() => setIsMissedPeopleDialogOpen(false)}>{TEXTS.cancel}</Button><Button onClick={handleSaveMissedPeople}>{TEXTS.save}</Button></DialogActions></Dialog>
     </Container>
   );
 }
 
 export default function App() {
   const [themeMode, setThemeMode] = useState(() => localStorage.getItem('themeMode') || 'dark');
-
-  useEffect(() => {
-    localStorage.setItem('themeMode', themeMode);
-  }, [themeMode]);
-
-  const theme = useMemo(() => createTheme({
-    palette: {
-      mode: themeMode,
-    },
-  }), [themeMode]);
-
-  const toggleTheme = () => {
-    setThemeMode(prevMode => (prevMode === 'light' ? 'dark' : 'light'));
-  };
-
+  useEffect(() => { localStorage.setItem('themeMode', themeMode); }, [themeMode]);
+  const theme = useMemo(() => createTheme({ palette: { mode: themeMode } }), [themeMode]);
+  const toggleTheme = () => { setThemeMode(prevMode => (prevMode === 'light' ? 'dark' : 'light')); };
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
