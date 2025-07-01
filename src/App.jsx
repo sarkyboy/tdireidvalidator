@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Box, Container, Typography, Button, Paper, Grid, Modal, Snackbar, CircularProgress, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, Tooltip, IconButton, Divider, TextField, Link, Switch, FormControlLabel } from '@mui/material';
+import { Box, Container, Typography, Button, Paper, Grid, Modal, Snackbar, CircularProgress, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, Tooltip, IconButton, Divider, TextField, Link, Switch, FormControlLabel, Stack } from '@mui/material';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 // --- 导入所有需要的图标 ---
@@ -94,17 +94,28 @@ const TEXTS = {
   adjustTotal: 'Adjust Total Identities',
   missedPeopleLabel: 'Number of people not captured',
   missedPeopleHelper: 'Enter a number to compensate for missed identities in accuracy calculation.',
+  selectAll: 'Select All', 
+  deselectAll: 'Deselect All', 
+  selectImportMode: 'Select Import Mode',
+  countingOnly: 'Counting Only',
+  countingOnlyDesc: 'Skips "Appearance_Disappearance" folders for faster loading.',
+  fullStoreTracking: 'Full Store Tracking',
+  fullStoreTrackingDesc: 'Imports all data including appearance and disappearance times (Default).',
+  currentDataSet: 'Current Data Set',
 };
 
 // --- Reusable TrackID Card Component ---
-const TrackIDCard = ({ image, sx, onClick }) => {
-  const copyTrackId = (e, trackId) => { e.stopPropagation(); navigator.clipboard.writeText(trackId); };
+const TrackIDCard = ({ image, sx, onClick, onCopy }) => {
+  const handleCopyClick = (e, trackId) => {
+    e.stopPropagation();
+    onCopy(trackId);
+  };
   return (
     <Box onClick={onClick} sx={{ border: '1px solid #eee', borderRadius: 1, p: 1, height: '100%', display: 'flex', flexDirection: 'column', ...sx }}>
       <img src={image.filePath} alt={image.uuid} style={{ width: '100%', height: 'auto', display: 'block', cursor: onClick ? 'pointer' : 'default' }} />
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 'auto', pt: 1 }}>
         <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.75rem' }}>{image.startTime}</Typography>
-        <Tooltip title={TEXTS.copyTrackID}><IconButton onClick={(e) => copyTrackId(e, image.uuid)} size="small" sx={{ p: 0.1 }}><ContentCopyIcon sx={{ fontSize: '1rem' }} /></IconButton></Tooltip>
+        <Tooltip title={TEXTS.copyTrackID}><IconButton onClick={(e) => handleCopyClick(e, image.uuid)} size="small" sx={{ p: 0.1 }}><ContentCopyIcon sx={{ fontSize: '1rem' }} /></IconButton></Tooltip>
       </Box>
     </Box>
   );
@@ -124,9 +135,7 @@ const StatItem = ({ icon, label, tooltipText, value, valueSx, onClick, onEdit })
             </Box>
           <ValueComponent component={onClick ? 'button' : 'div'} onClick={onClick} sx={{ fontSize: '1.75rem', fontWeight: 'bold', lineHeight: 1.2, color: 'text.primary', cursor: onClick ? 'pointer' : 'default', textDecoration: 'none', '&:hover': { textDecoration: onClick ? 'underline': 'none' }, ...valueSx }}>{value}</ValueComponent>
         </Box>
-        {onEdit && <Tooltip title={TEXTS.adjustTotal}>
-            <IconButton onClick={onEdit} size="small"><EditIcon fontSize="small" /></IconButton>
-        </Tooltip>}
+        {onEdit && <Tooltip title={TEXTS.adjustTotal}><IconButton onClick={onEdit} size="small"><EditIcon fontSize="small" /></IconButton></Tooltip>}
       </Paper>
     </Grid>
   );
@@ -145,7 +154,6 @@ function AppContent({ onToggleTheme, themeMode }) {
   const [notification, setNotification] = useState({ open: false, message: '' });
   const [isLoading, setIsLoading] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
-
   const [assignmentState, setAssignmentState] = useState({ isActive: false, folderIndex: null, personId: null, isEditing: false });
   const [currentSelection, setCurrentSelection] = useState(new Set());
   const [renamingState, setRenamingState] = useState({ personId: null, currentName: '' });
@@ -155,12 +163,17 @@ function AppContent({ onToggleTheme, themeMode }) {
   const [missedPeopleCount, setMissedPeopleCount] = useState(0);
   const [isMissedPeopleDialogOpen, setIsMissedPeopleDialogOpen] = useState(false);
   const [missedPeopleInput, setMissedPeopleInput] = useState('0');
-
+  const [rootFolderName, setRootFolderName] = useState('');
+  const [isModeSelectOpen, setIsModeSelectOpen] = useState(false);
+  
   // --- Logic Functions ---
+  const handleCopy = (uuid) => { navigator.clipboard.writeText(uuid).then(() => { setNotification({ open: true, message: `${TEXTS.copied} ${uuid}` }); }); };
   const extractImageUUID = (name) => { const re = /[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/; const match = name.match(re); return match ? match[0] : null; };
   const isUUIDFolder = (name) => { const reOriginal = /^\d{6}_[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/; const reUUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/; return reOriginal.test(name) || reUUID.test(name); };
 
-  const handleFolderSelect = async () => {
+  const handleFolderSelect = () => { setIsModeSelectOpen(true); };
+  
+  const proceedToSelectFolder = async (mode) => {
     try {
       setIsLoading(true);
       objectUrlsRef.current.forEach(URL.revokeObjectURL);
@@ -169,7 +182,20 @@ function AppContent({ onToggleTheme, themeMode }) {
       setMissedPeopleCount(0);
       setMissedPeopleInput('0');
       const dirHandle = await window.showDirectoryPicker();
-      const processedFolders = await processDirectory(dirHandle);
+      
+      let dataSetName = dirHandle.name;
+      let firstSubDirHandle = dirHandle;
+      // Find the first actual data directory to set the name
+      for await (const entry of dirHandle.values()) {
+        if (entry.kind === 'directory') {
+            dataSetName = entry.name;
+            firstSubDirHandle = entry; // This is what we will process
+            break; 
+        }
+      }
+      setRootFolderName(dataSetName);
+      
+      const processedFolders = await processDirectory(firstSubDirHandle, dataSetName, mode);
       setFolders(processedFolders);
       setTotalUUIDFolders(processedFolders.length);
     } catch (error) {
@@ -178,15 +204,12 @@ function AppContent({ onToggleTheme, themeMode }) {
       setIsLoading(false);
     }
   };
-
-  const processDirectory = async (dirHandle, path = '') => { const entries = []; for await (const entry of dirHandle.values()) { if (entry.kind === 'directory') { if (isUUIDFolder(entry.name)) { entries.push(await processUUIDFolder(entry, path + '/' + entry.name)); } else { entries.push(...await processDirectory(entry, path + '/' + entry.name)); } } } return entries; };
   
-  // --- MODIFIED: processUUIDFolder and its helper are updated for robust file scanning ---
-  const processUUIDFolder = async (dirHandle, path) => {
+  const handleModeSelected = (mode) => { setIsModeSelectOpen(false); proceedToSelectFolder(mode); };
+  const processDirectory = async (dirHandle, path = '', mode) => { const entries = []; for await (const entry of dirHandle.values()) { if (entry.kind === 'directory') { if (isUUIDFolder(entry.name)) { entries.push(await processUUIDFolder(entry, `${path}/${entry.name}`, mode)); } else { entries.push(...await processDirectory(entry, `${path}/${entry.name}`, mode)); } } } return entries; };
+  const processUUIDFolder = async (dirHandle, path, mode) => {
     const imageMap = new Map();
     let appearData = null; 
-
-    // Recursive helper to collect all files and parse info.txt
     const collectFilesRecursively = async (directoryHandle) => {
       for await (const entry of directoryHandle.values()) {
         if (entry.kind === 'file' && entry.name.toLowerCase().endsWith('.jpg')) {
@@ -205,7 +228,7 @@ function AppContent({ onToggleTheme, themeMode }) {
             }
           }
         } else if (entry.kind === 'directory') {
-          if (entry.name === 'Appearance_Disappearance') {
+          if (entry.name === 'Appearance_Disappearance' && mode === 'full_store') {
             try {
               const infoFileHandle = await entry.getFileHandle('info.txt');
               const file = await infoFileHandle.getFile();
@@ -225,38 +248,16 @@ function AppContent({ onToggleTheme, themeMode }) {
                 if (minAppear && maxDisappear && maxDisappear > minAppear) { const diffMs = maxDisappear - minAppear; const diffHrs = Math.floor(diffMs / 3600000); const diffMins = Math.floor((diffMs % 3600000) / 60000); durationString = `${diffHrs} ${TEXTS.hours} ${diffMins} ${TEXTS.minutes}`; durationInMinutes = Math.floor(diffMs / 60000); }
                 appearData = { startTime: formatTime(minAppear), endTime: formatTime(maxDisappear), duration: durationString, durationInMinutes };
               }
-            } catch (e) { console.log(`info.txt not found or couldn't be read in directory ${entry.name}`); }
+            } catch (e) { console.log(`info.txt not found in ${path}/${entry.name}`); }
           }
-          // Always recurse into subdirectories
           await collectFilesRecursively(entry);
         }
       }
     };
-
     await collectFilesRecursively(dirHandle);
-    
-    imageMap.forEach(imgData => {
-      let minDate = null;
-      for (const fileName of imgData.fileNames) {
-        const match = fileName.match(/^(\d{8})(\d{6})(\d{3})/);
-        if (match) {
-          const [, dateStr, timeStr, msStr] = match;
-          const [year, month, day, hour, minute, second, millisecond] = [ parseInt(dateStr.substring(0, 4), 10), parseInt(dateStr.substring(4, 6), 10) - 1, parseInt(dateStr.substring(6, 8), 10), parseInt(timeStr.substring(0, 2), 10), parseInt(timeStr.substring(2, 4), 10), parseInt(timeStr.substring(4, 6), 10), parseInt(msStr, 10) ];
-          const currentDate = new Date(year, month, day, hour, minute, second, millisecond);
-          if (!minDate || currentDate < minDate) minDate = currentDate;
-        }
-      }
-      imgData.startTime = minDate ? `${String(minDate.getHours()).padStart(2, '0')}:${String(minDate.getMinutes()).padStart(2, '0')}:${String(minDate.getSeconds()).padStart(2, '0')}` : 'N/A';
-    });
-
-    return {
-      folderUUID: dirHandle.name.split('_').pop(), folderPath: path,
-      images: Array.from(imageMap.values()).sort((a, b) => a.uuid.localeCompare(b.uuid)),
-      newPeople: [],
-      appearData: appearData,
-    };
+    imageMap.forEach(imgData => { let minDate = null; for (const fileName of imgData.fileNames) { const match = fileName.match(/^(\d{8})(\d{6})(\d{3})/); if (match) { const [, dateStr, timeStr, msStr] = match; const [year, month, day, hour, minute, second, millisecond] = [ parseInt(dateStr.substring(0, 4), 10), parseInt(dateStr.substring(4, 6), 10) - 1, parseInt(dateStr.substring(6, 8), 10), parseInt(timeStr.substring(0, 2), 10), parseInt(timeStr.substring(2, 4), 10), parseInt(timeStr.substring(4, 6), 10), parseInt(msStr, 10) ]; const currentDate = new Date(year, month, day, hour, minute, second, millisecond); if (!minDate || currentDate < minDate) minDate = currentDate; } } imgData.startTime = minDate ? `${String(minDate.getHours()).padStart(2, '0')}:${String(minDate.getMinutes()).padStart(2, '0')}:${String(minDate.getSeconds()).padStart(2, '0')}` : 'N/A'; });
+    return { folderUUID: dirHandle.name.split('_').pop(), folderPath: path, images: Array.from(imageMap.values()).sort((a, b) => a.uuid.localeCompare(b.uuid)), newPeople: [], appearData: appearData };
   };
-
   const handleImageClick = (images) => { setCurrentImages(images); setModalOpen(true); };
   const closeNotification = () => setNotification({ ...notification, open: false });
   const handleAddNewPerson = (folderIndex) => { setAssignmentState({ isActive: true, folderIndex, personId: uuidv4(), isEditing: false }); setCurrentSelection(new Set()); };
@@ -269,7 +270,7 @@ function AppContent({ onToggleTheme, themeMode }) {
   const handleCancelRename = () => setRenamingState({ personId: null, currentName: '' });
   const handleSaveRename = () => { if (!renamingState.personId) return; setFolders(prevFolders => prevFolders.map(folder => ({ ...folder, newPeople: folder.newPeople.map(person => person.id === renamingState.personId ? { ...person, name: renamingState.currentName } : person) }))); handleCancelRename(); };
   const handleRenameKeyDown = (e) => { if (e.key === 'Enter') handleSaveRename(); if (e.key === 'Escape') handleCancelRename(); };
-  const handleExportProgress = () => { if (folders.length === 0) { setNotification({ open: true, message: TEXTS.noProgressToSave }); return; } const dataToSave = { version: 1, missedPeopleCount: missedPeopleCount, foldersData: folders.map(folder => ({ folderUUID: folder.folderUUID, newPeople: folder.newPeople })) }; const jsonString = JSON.stringify(dataToSave, null, 2); const blob = new Blob([jsonString], { type: 'application/json' }); const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = 'progress.dat'; document.body.appendChild(link); link.click(); document.body.removeChild(link); URL.revokeObjectURL(url); };
+  const handleExportProgress = () => { if (folders.length === 0) { setNotification({ open: true, message: TEXTS.noProgressToSave }); return; } const dataToSave = { version: 1, missedPeopleCount: missedPeopleCount, foldersData: folders.map(folder => ({ folderUUID: folder.folderUUID, newPeople: folder.newPeople })) }; const jsonString = JSON.stringify(dataToSave, null, 2); const blob = new Blob([jsonString], { type: 'application/json' }); const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = `${rootFolderName || 'progress'}.dat`; document.body.appendChild(link); link.click(); document.body.removeChild(link); URL.revokeObjectURL(url); };
   const handleImportClick = () => { if (folders.length === 0) { setNotification({ open: true, message: TEXTS.loadFolderFirst }); return; } fileInputRef.current.click(); };
   const handleFileSelected = (event) => { const file = event.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (e) => { try { const importedData = JSON.parse(e.target.result); let foldersFromImport = []; let missedCountFromImport = 0; if (Array.isArray(importedData)) { foldersFromImport = importedData; } else if (typeof importedData === 'object' && importedData !== null && 'foldersData' in importedData) { foldersFromImport = importedData.foldersData; missedCountFromImport = importedData.missedPeopleCount || 0; } else { throw new Error("Invalid format"); } if (!Array.isArray(foldersFromImport)) throw new Error("Invalid format"); setMissedPeopleCount(missedCountFromImport); setMissedPeopleInput(String(missedCountFromImport)); const importMap = new Map(foldersFromImport.map(item => [item.folderUUID, item.newPeople])); setFolders(currentFolders => currentFolders.map(folder => importMap.has(folder.folderUUID) ? { ...folder, newPeople: importMap.get(folder.folderUUID) } : folder)); setNotification({ open: true, message: TEXTS.importSuccess }); } catch (error) { setNotification({ open: true, message: TEXTS.importError }); console.error("Error parsing imported file:", error); } }; reader.readAsText(file); event.target.value = null; };
   const handleGenerateTemporaryUUID = (folderIndex, personId) => { setFolders(prevFolders => { const newFolders = JSON.parse(JSON.stringify(prevFolders)); const person = newFolders[folderIndex].newPeople.find(p => p.id === personId); if (person && !person.temporaryUUID) person.temporaryUUID = uuidv4(); return newFolders; }); };
@@ -296,22 +297,18 @@ function AppContent({ onToggleTheme, themeMode }) {
   const handleNavPrev = () => { const { currentIndex } = navigation; if (currentIndex > 0) { const prevIndex = currentIndex - 1; handleScrollToUUID(navigation.targets[prevIndex]); setNavigation(nav => ({...nav, currentIndex: prevIndex})); } };
   const handleCloseNavigation = () => setNavigation({ isActive: false, targets: [], currentIndex: -1 });
   const filteredFolders = useMemo(() => { return folders.filter(folder => { const duration = folder.appearData?.durationInMinutes; if (filters.durationLessThan && (duration === undefined || duration >= parseInt(filters.durationLessThan, 10))) return false; if (filters.durationMoreThan && (duration === undefined || duration <= parseInt(filters.durationMoreThan, 10))) return false; if (filters.showFalseNegative && folder.newPeople.length <= 1) return false; if (filters.showFalsePositive && !folder.newPeople.some(p => p.linkedFolderUUID)) return false; return true; }); }, [folders, filters]);
+  const handleSelectAll = (imagesToSelect) => { setCurrentSelection(new Set(imagesToSelect.map(img => img.uuid))); };
+  const handleDeselectAll = () => { setCurrentSelection(new Set()); };
 
   return (
     <Container maxWidth="lg">
       <Box sx={{ my: 4 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
           <Typography variant="h4" component="h1" gutterBottom>{TEXTS.title}</Typography>
-          <Box>
-            <Tooltip title={TEXTS.userManual}><IconButton onClick={() => setManualOpen(true)} color="inherit"><HelpOutlineIcon /></IconButton></Tooltip>
-            <Tooltip title={TEXTS.toggleTheme}><IconButton sx={{ ml: 1 }} onClick={onToggleTheme} color="inherit">{themeMode === 'dark' ? <Brightness7Icon /> : <Brightness4Icon />}</IconButton></Tooltip>
-          </Box>
+          <Box><Tooltip title={TEXTS.userManual}><IconButton onClick={() => setManualOpen(true)} color="inherit"><HelpOutlineIcon /></IconButton></Tooltip><Tooltip title={TEXTS.toggleTheme}><IconButton sx={{ ml: 1 }} onClick={onToggleTheme} color="inherit">{themeMode === 'dark' ? <Brightness7Icon /> : <Brightness4Icon />}</IconButton></Tooltip></Box>
         </Box>
-        <Box sx={{display: 'flex', gap: 2, mb: 3}}>
-          <Button variant="contained" color="primary" onClick={handleFolderSelect} disabled={isLoading}>{TEXTS.selectFolder}</Button>
-          <Button variant="outlined" color="secondary" onClick={handleImportClick} disabled={isLoading}>{TEXTS.importProgress}</Button>
-          <Button variant="outlined" color="secondary" onClick={handleExportProgress} disabled={isLoading}>{TEXTS.exportProgress}</Button>
-        </Box>
+        <Box sx={{display: 'flex', gap: 2, mb: 1}}><Button variant="contained" color="primary" onClick={handleFolderSelect} disabled={isLoading}>{TEXTS.selectFolder}</Button><Button variant="outlined" color="secondary" onClick={handleImportClick} disabled={isLoading}>{TEXTS.importProgress}</Button><Button variant="outlined" color="secondary" onClick={handleExportProgress} disabled={isLoading}>{TEXTS.exportProgress}</Button></Box>
+        {rootFolderName && <Typography variant="caption" color="text.secondary" sx={{mb: 3, display: 'block'}}>{TEXTS.currentDataSet}: {rootFolderName}</Typography>}
         <input type="file" ref={fileInputRef} style={{display: 'none'}} onChange={handleFileSelected} accept=".dat, .json, .txt"/>
         <Dialog open={isLoading} disableEscapeKeyDown><DialogContent sx={{ textAlign: 'center', p: 4 }}><CircularProgress sx={{ mb: 2 }} /><DialogContentText>{TEXTS.processing}</DialogContentText></DialogContent></Dialog>
         <Paper sx={{ p: 2, mb: 3 }}><Grid container spacing={2}><StatItem icon={<FolderCopyIcon fontSize="large"/>} label={TEXTS.totalIdentities} tooltipText={TEXTS.totalIdentitiesTooltip} value={<>{adjustedTotal} {missedPeopleCount > 0 && <Box component="span" sx={{fontSize: '1rem', fontWeight: 'normal'}}>({totalUUIDFolders} + {missedPeopleCount})</Box>}</>} onEdit={() => { setMissedPeopleInput(String(missedPeopleCount)); setIsMissedPeopleDialogOpen(true); }}/><StatItem icon={<ReportProblemIcon fontSize="large"/>} label={TEXTS.incompleteFolders} tooltipText={TEXTS.incompleteFoldersTooltip} value={incompleteFolders.length} onClick={() => startNavigation(incompleteFolders)} valueSx={{color: incompleteFolders.length > 0 ? 'error.main' : 'text.primary'}}/><StatItem icon={<PercentIcon fontSize="large"/>} label={TEXTS.reIdAccuracy} tooltipText={TEXTS.reIdAccuracyTooltip} value={`${reIdAccuracy.toFixed(2)}%`} valueSx={{color: accuracyColor}}/><StatItem icon={<CheckCircleOutlineIcon fontSize="large"/>} label={TEXTS.correctUUIDs} tooltipText={TEXTS.correctUUIDsTooltip} value={correctFolders.length} onClick={() => startNavigation(correctFolders)}/><StatItem icon={<CallMergeIcon fontSize="large"/>} label={TEXTS.falseNegative} tooltipText={TEXTS.falseNegativeTooltip} value={falseNegativeFolders.length} onClick={() => startNavigation(falseNegativeFolders)}/><StatItem icon={<CallSplitIcon fontSize="large"/>} label={TEXTS.falsePositive} tooltipText={TEXTS.falsePositiveTooltip} value={falsePositiveFolders.length} onClick={() => startNavigation(falsePositiveFolders)}/></Grid></Paper>
@@ -319,19 +316,7 @@ function AppContent({ onToggleTheme, themeMode }) {
         <Modal open={modalOpen} onClose={() => setModalOpen(false)} aria-labelledby="modal-title" ><Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '90%', maxWidth: 1000, bgcolor: 'background.paper', boxShadow: 24, p: 4, maxHeight: '90vh', overflow: 'auto' }} ><Typography id="modal-title" variant="h6" component="h2" gutterBottom>{TEXTS.relatedImages}</Typography><Grid container spacing={1}>{currentImages.map((imgUrl, idx) => (<Grid item xs={2} sm={1} key={idx}><img src={imgUrl} alt={`Related ${idx}`} style={{ width: '100%', height: 'auto' }} /></Grid>))}</Grid></Box></Modal>
         <Snackbar open={notification.open} autoHideDuration={5000} onClose={closeNotification} message={notification.message} />
         <Grid container spacing={2}>
-          {filteredFolders.map((folder, folderIndex) => {
-            const imageMap = new Map(folder.images.map(img => [img.uuid, img]));
-            let tracksToHide = new Set();
-            if (assignmentState.isActive && assignmentState.folderIndex === folderIndex) { folder.newPeople.forEach(p => { if (p.id !== assignmentState.personId) p.assignedTracks.forEach(trackId => tracksToHide.add(trackId)); }); } else { tracksToHide = new Set(folder.newPeople.flatMap(p => p.assignedTracks)); }
-            const availableImages = folder.images.filter(img => !tracksToHide.has(img.uuid));
-            const currentPersonIndex = folder.newPeople.findIndex(p => p.id === assignmentState.personId);
-            return (
-            <Grid item xs={12} key={folder.folderUUID} ref={node => { const map = folderRefs.current; if (node) map.set(folder.folderUUID, node); else map.delete(folder.folderUUID); }}>
-              <Paper sx={{ p: 2 }}><Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}><Box sx={{ display: 'flex', alignItems: 'center' }}><Typography variant="h6">UUID: {folder.folderUUID}</Typography><Button size="small" variant="outlined" onClick={() => navigator.clipboard.writeText(folder.folderUUID)} sx={{ ml: 1 }}>{TEXTS.copyUUID}</Button></Box>{assignmentState.isActive && assignmentState.folderIndex === folderIndex ? (<Box sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1, border: '1px solid', borderColor: 'primary.main', borderRadius: 1 }}><Typography variant="subtitle2" color="primary">{assignmentState.isEditing ? `${TEXTS.editing} "${folder.newPeople[currentPersonIndex]?.name}"` : `${TEXTS.assigningTo} ${TEXTS.newPerson} ${folder.newPeople.length + 1}`}</Typography><Button variant="contained" size="small" onClick={handleDoneAssignment}>{TEXTS.done}</Button><Button variant="outlined" size="small" onClick={handleCancelAssignment}>{TEXTS.cancel}</Button></Box>) : ( <Button variant="contained" onClick={() => handleAddNewPerson(folderIndex)} disabled={assignmentState.isActive || renamingState.personId}>{TEXTS.addNewPerson}</Button> )}
-                </Box>{folder.appearData && (<Box sx={{ my: 1, p: 1, bgcolor: 'action.hover', borderRadius: 1}}><Typography variant="caption" sx={{color: 'text.secondary', wordBreak: 'break-word'}}>{`${TEXTS.appear}: ${folder.appearData.startTime} | ${TEXTS.disappear}: ${folder.appearData.endTime} | ${TEXTS.duration}: ${folder.appearData.duration}`}</Typography></Box>)}<Divider sx={{ my: 2 }} /> {availableImages.length > 0 ? (<><Typography variant="subtitle1" sx={{ mb: 1 }}>{TEXTS.unassignedTracks}</Typography><Grid container spacing={1}>{availableImages.map((image) => { const isSelected = currentSelection.has(image.uuid); const cardSx = { borderWidth: '2px', borderColor: isSelected ? 'primary.main' : 'error.main', transform: isSelected ? 'scale(0.95)' : 'none', transition: 'all 0.2s ease-in-out' }; return ( <Grid item xs={6} sm={4} md={2} lg={1} key={image.uuid}> <TrackIDCard image={image} sx={cardSx} onClick={assignmentState.isActive && assignmentState.folderIndex === folderIndex ? () => handleTrackClickForAssignment(image.uuid) : () => handleImageClick(image.relatedImages)} /> </Grid> )})}</Grid></>) : (<Typography variant="subtitle1" sx={{ mb: 1, color: 'text.secondary' }}>{TEXTS.unassignedTracksNone}</Typography>)}{!(assignmentState.isActive && assignmentState.isEditing && assignmentState.folderIndex === folderIndex) && folder.newPeople.length > 0 && (<Box><Divider sx={{ my: 2 }}/><Typography variant="subtitle1" sx={{ mb: 1 }}>{TEXTS.assignedPeople}</Typography>{folder.newPeople.map((person, personIndex) => (<Paper key={person.id} variant="outlined" sx={{ p: 2, mb: 2 }}><Box sx={{display: 'flex', alignItems: 'center', mb: 1}}>{renamingState.personId === person.id ? (<TextField value={renamingState.currentName} onChange={handleRenameChange} onKeyDown={handleRenameKeyDown} onBlur={handleSaveRename} size="small" variant="standard" autoFocus sx={{ flexGrow: 1, mr: 1, '& .MuiInputBase-input': { fontSize: '1.25rem', fontWeight: '500' } }} />) : (<Typography variant="h6" gutterBottom sx={{flexGrow: 1, mb: 0}}>{person.name || `${TEXTS.newPerson} ${personIndex + 1}`}</Typography>)}{renamingState.personId !== person.id && (<><Tooltip title={TEXTS.linkToUUID}><span><IconButton size="small" onClick={() => handleOpenLinkDialog(person, folderIndex)} disabled={assignmentState.isActive || renamingState.personId}><LinkIcon /></IconButton></span></Tooltip><Tooltip title={TEXTS.rename}><span><IconButton size="small" onClick={() => handleStartRename(person)} disabled={assignmentState.isActive || renamingState.personId}><DriveFileRenameOutlineIcon /></IconButton></span></Tooltip><Tooltip title={TEXTS.edit}><span><IconButton size="small" onClick={() => handleEditPerson(folderIndex, person)} disabled={assignmentState.isActive || renamingState.personId}><EditIcon /></IconButton></span></Tooltip></>)}</Box><Grid container spacing={1}>{person.assignedTracks.map(trackId => ( imageMap.has(trackId) ? (<Grid item xs={6} sm={4} md={2} lg={1} key={trackId}><TrackIDCard image={imageMap.get(trackId)} sx={{ borderColor: 'primary.main', borderWidth: '2px' }} onClick={() => handleImageClick(imageMap.get(trackId).relatedImages)}/></Grid>) : null ))}</Grid>{person.linkedFolderUUID && ( <Box sx={{mt: 1, display: 'flex', alignItems: 'center', gap: 0.5}}><Typography variant="body2" sx={{ color: 'text.secondary' }}>{TEXTS.linkedTo}:</Typography><Link component="button" variant="body2" onClick={() => handleScrollToUUID(person.linkedFolderUUID)} sx={{ color: 'text.secondary', textDecoration: 'none', '&:hover': {textDecoration: 'underline'} }}>{person.linkedFolderUUID}</Link><Tooltip title={TEXTS.unlink}><IconButton size="small" sx={{p: 0.2}} onClick={() => handleUnlink(person.id, folderIndex)}><CloseIcon sx={{ fontSize: '1rem' }} /></IconButton></Tooltip></Box>)}{person.temporaryUUID ? (<Box sx={{mt: 1, display: 'flex', alignItems: 'center', gap: 0.5}}><Typography variant="body2" sx={{ color: 'text.secondary' }}>{TEXTS.temporaryUUID}:</Typography><Typography variant="body2" sx={{ color: 'text.secondary', fontFamily: 'monospace', wordBreak: 'break-all' }}>{person.temporaryUUID}</Typography><Tooltip title={TEXTS.copyTrackID}><IconButton size="small" sx={{p: 0.2}} onClick={() => navigator.clipboard.writeText(person.temporaryUUID)}><ContentCopyIcon sx={{ fontSize: '1rem' }} /></IconButton></Tooltip><Tooltip title={TEXTS.deleteTemporaryUUID}><IconButton size="small" sx={{p: 0.2}} onClick={() => handleDeleteTemporaryUUID(folderIndex, person.id)}><CloseIcon sx={{ fontSize: '1rem' }} /></IconButton></Tooltip></Box>) : ( <Button startIcon={<AddCircleOutlineIcon/>} onClick={() => handleGenerateTemporaryUUID(folderIndex, person.id)} size="small" sx={{mt: 1, p: 0.2}}> {TEXTS.generateTemporaryUUID} </Button> )}</Paper>))}</Box>)}
-              </Paper>
-            </Grid>
-          )})}
+          {filteredFolders.map((folder, folderIndex) => { const imageMap = new Map(folder.images.map(img => [img.uuid, img])); let tracksToHide = new Set(); if (assignmentState.isActive && assignmentState.folderIndex === folderIndex) { folder.newPeople.forEach(p => { if (p.id !== assignmentState.personId) p.assignedTracks.forEach(trackId => tracksToHide.add(trackId)); }); } else { tracksToHide = new Set(folder.newPeople.flatMap(p => p.assignedTracks)); } const availableImages = folder.images.filter(img => !tracksToHide.has(img.uuid)); const currentPersonIndex = folder.newPeople.findIndex(p => p.id === assignmentState.personId); return ( <Grid item xs={12} key={folder.folderUUID} ref={node => { const map = folderRefs.current; if (node) map.set(folder.folderUUID, node); else map.delete(folder.folderUUID); }}> <Paper sx={{ p: 2 }}><Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}><Box sx={{ display: 'flex', alignItems: 'center' }}><Typography variant="h6">UUID: {folder.folderUUID}</Typography><Button size="small" variant="outlined" onClick={() => handleCopy(folder.folderUUID)} sx={{ ml: 1 }}>{TEXTS.copyUUID}</Button></Box>{assignmentState.isActive && assignmentState.folderIndex === folderIndex ? (<Box sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1, border: '1px solid', borderColor: 'primary.main', borderRadius: 1 }}><Typography variant="subtitle2" color="primary">{assignmentState.isEditing ? `${TEXTS.editing} "${folder.newPeople[currentPersonIndex]?.name}"` : `${TEXTS.assigningTo} ${TEXTS.newPerson} ${folder.newPeople.length + 1}`}</Typography><Button variant="contained" size="small" onClick={handleDoneAssignment}>{TEXTS.done}</Button><Button variant="outlined" size="small" onClick={handleCancelAssignment}>{TEXTS.cancel}</Button></Box>) : ( <Button variant="contained" onClick={() => handleAddNewPerson(folderIndex)} disabled={assignmentState.isActive || renamingState.personId}>{TEXTS.addNewPerson}</Button> )} </Box>{folder.appearData && (<Box sx={{ my: 1, p: 1, bgcolor: 'action.hover', borderRadius: 1}}><Typography variant="caption" sx={{color: 'text.secondary', wordBreak: 'break-word'}}>{`${TEXTS.appear}: ${folder.appearData.startTime} | ${TEXTS.disappear}: ${folder.appearData.endTime} | ${TEXTS.duration}: ${folder.appearData.duration}`}</Typography></Box>)}<Divider sx={{ my: 2 }} /> <Box sx={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1}}><Typography variant="subtitle1">{TEXTS.unassignedTracks}</Typography>{assignmentState.isActive && assignmentState.folderIndex === folderIndex && availableImages.length > 0 && (<Button size="small" onClick={() => currentSelection.size === availableImages.length ? handleDeselectAll() : handleSelectAll(availableImages)}>{currentSelection.size === availableImages.length ? TEXTS.deselectAll : TEXTS.selectAll}</Button>)}</Box>{availableImages.length > 0 ? (<Grid container spacing={1}>{availableImages.map((image) => { const isSelected = currentSelection.has(image.uuid); const cardSx = { borderWidth: '2px', borderColor: isSelected ? 'primary.main' : 'error.main', transform: isSelected ? 'scale(0.95)' : 'none', transition: 'all 0.2s ease-in-out' }; return ( <Grid item xs={6} sm={4} md={2} lg={1} key={image.uuid}> <TrackIDCard image={image} sx={cardSx} onCopy={handleCopy} onClick={assignmentState.isActive && assignmentState.folderIndex === folderIndex ? () => handleTrackClickForAssignment(image.uuid) : () => handleImageClick(image.relatedImages)} /> </Grid> )})}</Grid>) : (<Typography variant="subtitle1" sx={{ color: 'text.secondary' }}>{TEXTS.unassignedTracksNone}</Typography>)}{!(assignmentState.isActive && assignmentState.isEditing && assignmentState.folderIndex === folderIndex) && folder.newPeople.length > 0 && (<Box><Divider sx={{ my: 2 }}/><Typography variant="subtitle1" sx={{ mb: 1 }}>{TEXTS.assignedPeople}</Typography>{folder.newPeople.map((person, personIndex) => (<Paper key={person.id} variant="outlined" sx={{ p: 2, mb: 2 }}><Box sx={{display: 'flex', alignItems: 'center', mb: 1}}>{renamingState.personId === person.id ? (<TextField value={renamingState.currentName} onChange={handleRenameChange} onKeyDown={handleRenameKeyDown} onBlur={handleSaveRename} size="small" variant="standard" autoFocus sx={{ flexGrow: 1, mr: 1, '& .MuiInputBase-input': { fontSize: '1.25rem', fontWeight: '500' } }} />) : (<Typography variant="h6" gutterBottom sx={{flexGrow: 1, mb: 0}}>{person.name || `${TEXTS.newPerson} ${personIndex + 1}`}</Typography>)}{renamingState.personId !== person.id && (<><Tooltip title={TEXTS.linkToUUID}><span><IconButton size="small" onClick={() => handleOpenLinkDialog(person, folderIndex)} disabled={assignmentState.isActive || renamingState.personId}><LinkIcon /></IconButton></span></Tooltip><Tooltip title={TEXTS.rename}><span><IconButton size="small" onClick={() => handleStartRename(person)} disabled={assignmentState.isActive || renamingState.personId}><DriveFileRenameOutlineIcon /></IconButton></span></Tooltip><Tooltip title={TEXTS.edit}><span><IconButton size="small" onClick={() => handleEditPerson(folderIndex, person)} disabled={assignmentState.isActive || renamingState.personId}><EditIcon /></IconButton></span></Tooltip></>)}</Box><Grid container spacing={1}>{person.assignedTracks.map(trackId => ( imageMap.has(trackId) ? (<Grid item xs={6} sm={4} md={2} lg={1} key={trackId}><TrackIDCard image={imageMap.get(trackId)} sx={{ borderColor: 'primary.main', borderWidth: '2px' }} onCopy={handleCopy} onClick={() => handleImageClick(imageMap.get(trackId).relatedImages)}/></Grid>) : null ))}</Grid>{person.linkedFolderUUID && ( <Box sx={{mt: 1, display: 'flex', alignItems: 'center', gap: 0.5}}><Typography variant="body2" sx={{ color: 'text.secondary' }}>{TEXTS.linkedTo}:</Typography><Link component="button" variant="body2" onClick={() => handleScrollToUUID(person.linkedFolderUUID)} sx={{ color: 'text.secondary', textDecoration: 'none', '&:hover': {textDecoration: 'underline'} }}>{person.linkedFolderUUID}</Link><Tooltip title={TEXTS.unlink}><IconButton size="small" sx={{p: 0.2}} onClick={() => handleUnlink(person.id, folderIndex)}><CloseIcon sx={{ fontSize: '1rem' }} /></IconButton></Tooltip></Box>)}{person.temporaryUUID ? (<Box sx={{mt: 1, display: 'flex', alignItems: 'center', gap: 0.5}}><Typography variant="body2" sx={{ color: 'text.secondary' }}>{TEXTS.temporaryUUID}:</Typography><Typography variant="body2" sx={{ color: 'text.secondary', fontFamily: 'monospace', wordBreak: 'break-all' }}>{person.temporaryUUID}</Typography><Tooltip title={TEXTS.copyTrackID}><IconButton size="small" sx={{p: 0.2}} onClick={() => handleCopy(person.temporaryUUID)}><ContentCopyIcon sx={{ fontSize: '1rem' }} /></IconButton></Tooltip><Tooltip title={TEXTS.deleteTemporaryUUID}><IconButton size="small" sx={{p: 0.2}} onClick={() => handleDeleteTemporaryUUID(folderIndex, person.id)}><CloseIcon sx={{ fontSize: '1rem' }} /></IconButton></Tooltip></Box>) : ( <Button startIcon={<AddCircleOutlineIcon/>} onClick={() => handleGenerateTemporaryUUID(folderIndex, person.id)} size="small" sx={{mt: 1, p: 0.2}}> {TEXTS.generateTemporaryUUID} </Button> )}</Paper>))}</Box>)} </Paper> </Grid> )})}
         </Grid>
       </Box>
 
@@ -339,6 +324,7 @@ function AppContent({ onToggleTheme, themeMode }) {
       <Dialog open={linkState.isOpen} onClose={handleCloseLinkDialog} fullWidth maxWidth="sm"><DialogTitle>{TEXTS.linkToUUID}</DialogTitle><DialogContent><DialogContentText sx={{mb: 2}}>{TEXTS.enterUUID}</DialogContentText><TextField autoFocus margin="dense" id="uuid-link-input" label="Folder or Person UUID" type="text" fullWidth variant="outlined" value={linkState.inputValue} onChange={(e) => setLinkState(s => ({...s, inputValue: e.target.value, error: ''}))} error={!!linkState.error} helperText={linkState.error}/></DialogContent><DialogActions><Button onClick={handleCloseLinkDialog}>{TEXTS.cancel}</Button><Button onClick={handleSaveLink} variant="contained">{TEXTS.save}</Button></DialogActions></Dialog>
       <Dialog open={manualOpen} onClose={() => setManualOpen(false)}><DialogTitle>{TEXTS.userManualTitle}</DialogTitle><DialogContent><DialogContentText>{TEXTS.userManualContent}</DialogContentText><Link href="http://www.tdintelligence.wiki" target="_blank" rel="noopener noreferrer" sx={{mt: 2, display: 'block'}}>{TEXTS.userManualLinkText}</Link></DialogContent><DialogActions><Button onClick={() => setManualOpen(false)}>{TEXTS.close}</Button></DialogActions></Dialog>
       <Dialog open={isMissedPeopleDialogOpen} onClose={() => setIsMissedPeopleDialogOpen(false)}><DialogTitle>{TEXTS.adjustTotal}</DialogTitle><DialogContent><DialogContentText>{TEXTS.missedPeopleHelper}</DialogContentText><TextField autoFocus margin="dense" label={TEXTS.missedPeopleLabel} type="number" fullWidth variant="standard" value={missedPeopleInput} onChange={(e) => setMissedPeopleInput(e.target.value)}/></DialogContent><DialogActions><Button onClick={() => setIsMissedPeopleDialogOpen(false)}>{TEXTS.cancel}</Button><Button onClick={handleSaveMissedPeople}>{TEXTS.save}</Button></DialogActions></Dialog>
+      <Dialog open={isModeSelectOpen} onClose={() => setIsModeSelectOpen(false)}><DialogTitle>{TEXTS.selectImportMode}</DialogTitle><DialogContent><Stack spacing={2} sx={{pt: 1}}><Button variant="contained" onClick={() => handleModeSelected('full_store')}>{TEXTS.fullStoreTracking}</Button><Button variant="outlined" onClick={() => handleModeSelected('counting_only')}>{TEXTS.countingOnly}</Button></Stack></DialogContent></Dialog>
     </Container>
   );
 }
