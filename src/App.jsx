@@ -102,14 +102,12 @@ const TEXTS = {
   fullStoreTracking: 'Full Store Tracking',
   fullStoreTrackingDesc: 'Imports all data including appearance and disappearance times (Default).',
   currentDataSet: 'Current Data Set',
+  noValidFoldersFound: 'No valid UUID folders found in the selected directory.', // 新增
 };
 
 // --- Reusable TrackID Card Component ---
 const TrackIDCard = ({ image, sx, onClick, onCopy }) => {
-  const handleCopyClick = (e, trackId) => {
-    e.stopPropagation();
-    onCopy(trackId);
-  };
+  const handleCopyClick = (e, trackId) => { e.stopPropagation(); onCopy(trackId); };
   return (
     <Box onClick={onClick} sx={{ border: '1px solid #eee', borderRadius: 1, p: 1, height: '100%', display: 'flex', flexDirection: 'column', ...sx }}>
       <img src={image.filePath} alt={image.uuid} style={{ width: '100%', height: 'auto', display: 'block', cursor: onClick ? 'pointer' : 'default' }} />
@@ -165,7 +163,7 @@ function AppContent({ onToggleTheme, themeMode }) {
   const [missedPeopleInput, setMissedPeopleInput] = useState('0');
   const [rootFolderName, setRootFolderName] = useState('');
   const [isModeSelectOpen, setIsModeSelectOpen] = useState(false);
-  
+
   // --- Logic Functions ---
   const handleCopy = (uuid) => { navigator.clipboard.writeText(uuid).then(() => { setNotification({ open: true, message: `${TEXTS.copied} ${uuid}` }); }); };
   const extractImageUUID = (name) => { const re = /[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/; const match = name.match(re); return match ? match[0] : null; };
@@ -181,21 +179,16 @@ function AppContent({ onToggleTheme, themeMode }) {
       folderRefs.current.clear();
       setMissedPeopleCount(0);
       setMissedPeopleInput('0');
+
       const dirHandle = await window.showDirectoryPicker();
+      setRootFolderName(dirHandle.name);
       
-      let dataSetName = dirHandle.name;
-      let firstSubDirHandle = dirHandle;
-      // Find the first actual data directory to set the name
-      for await (const entry of dirHandle.values()) {
-        if (entry.kind === 'directory') {
-            dataSetName = entry.name;
-            firstSubDirHandle = entry; // This is what we will process
-            break; 
-        }
+      const processedFolders = await processDirectory(dirHandle, dirHandle.name, mode);
+      
+      if (processedFolders.length === 0) {
+        setNotification({ open: true, message: TEXTS.noValidFoldersFound });
       }
-      setRootFolderName(dataSetName);
-      
-      const processedFolders = await processDirectory(firstSubDirHandle, dataSetName, mode);
+
       setFolders(processedFolders);
       setTotalUUIDFolders(processedFolders.length);
     } catch (error) {
@@ -206,7 +199,21 @@ function AppContent({ onToggleTheme, themeMode }) {
   };
   
   const handleModeSelected = (mode) => { setIsModeSelectOpen(false); proceedToSelectFolder(mode); };
-  const processDirectory = async (dirHandle, path = '', mode) => { const entries = []; for await (const entry of dirHandle.values()) { if (entry.kind === 'directory') { if (isUUIDFolder(entry.name)) { entries.push(await processUUIDFolder(entry, `${path}/${entry.name}`, mode)); } else { entries.push(...await processDirectory(entry, `${path}/${entry.name}`, mode)); } } } return entries; };
+  
+  const processDirectory = async (dirHandle, path = '', mode) => {
+    const entries = [];
+    for await (const entry of dirHandle.values()) {
+      if (entry.kind === 'directory') {
+        if (isUUIDFolder(entry.name)) {
+          entries.push(await processUUIDFolder(entry, `${path}/${entry.name}`, mode));
+        } else {
+          entries.push(...await processDirectory(entry, `${path}/${entry.name}`, mode));
+        }
+      }
+    }
+    return entries;
+  };
+  
   const processUUIDFolder = async (dirHandle, path, mode) => {
     const imageMap = new Map();
     let appearData = null; 
@@ -258,6 +265,7 @@ function AppContent({ onToggleTheme, themeMode }) {
     imageMap.forEach(imgData => { let minDate = null; for (const fileName of imgData.fileNames) { const match = fileName.match(/^(\d{8})(\d{6})(\d{3})/); if (match) { const [, dateStr, timeStr, msStr] = match; const [year, month, day, hour, minute, second, millisecond] = [ parseInt(dateStr.substring(0, 4), 10), parseInt(dateStr.substring(4, 6), 10) - 1, parseInt(dateStr.substring(6, 8), 10), parseInt(timeStr.substring(0, 2), 10), parseInt(timeStr.substring(2, 4), 10), parseInt(timeStr.substring(4, 6), 10), parseInt(msStr, 10) ]; const currentDate = new Date(year, month, day, hour, minute, second, millisecond); if (!minDate || currentDate < minDate) minDate = currentDate; } } imgData.startTime = minDate ? `${String(minDate.getHours()).padStart(2, '0')}:${String(minDate.getMinutes()).padStart(2, '0')}:${String(minDate.getSeconds()).padStart(2, '0')}` : 'N/A'; });
     return { folderUUID: dirHandle.name.split('_').pop(), folderPath: path, images: Array.from(imageMap.values()).sort((a, b) => a.uuid.localeCompare(b.uuid)), newPeople: [], appearData: appearData };
   };
+
   const handleImageClick = (images) => { setCurrentImages(images); setModalOpen(true); };
   const closeNotification = () => setNotification({ ...notification, open: false });
   const handleAddNewPerson = (folderIndex) => { setAssignmentState({ isActive: true, folderIndex, personId: uuidv4(), isEditing: false }); setCurrentSelection(new Set()); };
@@ -324,7 +332,7 @@ function AppContent({ onToggleTheme, themeMode }) {
       <Dialog open={linkState.isOpen} onClose={handleCloseLinkDialog} fullWidth maxWidth="sm"><DialogTitle>{TEXTS.linkToUUID}</DialogTitle><DialogContent><DialogContentText sx={{mb: 2}}>{TEXTS.enterUUID}</DialogContentText><TextField autoFocus margin="dense" id="uuid-link-input" label="Folder or Person UUID" type="text" fullWidth variant="outlined" value={linkState.inputValue} onChange={(e) => setLinkState(s => ({...s, inputValue: e.target.value, error: ''}))} error={!!linkState.error} helperText={linkState.error}/></DialogContent><DialogActions><Button onClick={handleCloseLinkDialog}>{TEXTS.cancel}</Button><Button onClick={handleSaveLink} variant="contained">{TEXTS.save}</Button></DialogActions></Dialog>
       <Dialog open={manualOpen} onClose={() => setManualOpen(false)}><DialogTitle>{TEXTS.userManualTitle}</DialogTitle><DialogContent><DialogContentText>{TEXTS.userManualContent}</DialogContentText><Link href="http://www.tdintelligence.wiki" target="_blank" rel="noopener noreferrer" sx={{mt: 2, display: 'block'}}>{TEXTS.userManualLinkText}</Link></DialogContent><DialogActions><Button onClick={() => setManualOpen(false)}>{TEXTS.close}</Button></DialogActions></Dialog>
       <Dialog open={isMissedPeopleDialogOpen} onClose={() => setIsMissedPeopleDialogOpen(false)}><DialogTitle>{TEXTS.adjustTotal}</DialogTitle><DialogContent><DialogContentText>{TEXTS.missedPeopleHelper}</DialogContentText><TextField autoFocus margin="dense" label={TEXTS.missedPeopleLabel} type="number" fullWidth variant="standard" value={missedPeopleInput} onChange={(e) => setMissedPeopleInput(e.target.value)}/></DialogContent><DialogActions><Button onClick={() => setIsMissedPeopleDialogOpen(false)}>{TEXTS.cancel}</Button><Button onClick={handleSaveMissedPeople}>{TEXTS.save}</Button></DialogActions></Dialog>
-      <Dialog open={isModeSelectOpen} onClose={() => setIsModeSelectOpen(false)}><DialogTitle>{TEXTS.selectImportMode}</DialogTitle><DialogContent><Stack spacing={2} sx={{pt: 1}}><Button variant="contained" onClick={() => handleModeSelected('full_store')}>{TEXTS.fullStoreTracking}</Button><Button variant="outlined" onClick={() => handleModeSelected('counting_only')}>{TEXTS.countingOnly}</Button></Stack></DialogContent></Dialog>
+      <Dialog open={isModeSelectOpen} onClose={() => setIsModeSelectOpen(false)}><DialogTitle>{TEXTS.selectImportMode}</DialogTitle><DialogContent><Stack spacing={2} sx={{pt: 1}}><Button variant="contained" onClick={() => handleModeSelected('full_store')}>{TEXTS.fullStoreTracking}</Button><Typography variant="caption">{TEXTS.fullStoreTrackingDesc}</Typography><Button variant="outlined" onClick={() => handleModeSelected('counting_only')}>{TEXTS.countingOnly}</Button><Typography variant="caption">{TEXTS.countingOnlyDesc}</Typography></Stack></DialogContent></Dialog>
     </Container>
   );
 }
