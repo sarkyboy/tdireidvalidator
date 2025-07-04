@@ -83,7 +83,7 @@ const TEXTS = {
   totalIdentitiesTooltip: 'The total number of unique top-level UUID folders found in the selected directory.',
   incompleteFoldersTooltip: 'The number of folders where not all Track IDs have been assigned to a person.',
   reIdAccuracyTooltip: 'Calculated as (Correct UUIDs / Adjusted Total Folders). Green: >= 85%, Yellow: 75%-85%, Red: < 75%.',
-  correctUUIDsTooltip: 'The number of folders that contain exactly one "Assigned Person" group.',
+  correctUUIDsTooltip: 'The number of folders that contain exactly one "Assigned Person" group, and that group is not linked to any other UUID.', // 修改
   falseNegativeTooltip: 'The number of folders that contain more than one "Assigned Person" group, indicating a potential merge is needed.',
   falsePositiveTooltip: 'The number of folders where at least one person is linked to an external UUID, indicating a potential split is needed.',
   userManual: 'User Manual',
@@ -102,7 +102,7 @@ const TEXTS = {
   fullStoreTracking: 'Full Store Tracking',
   fullStoreTrackingDesc: 'Imports all data including appearance and disappearance times (Default).',
   currentDataSet: 'Current Data Set',
-  noValidFoldersFound: 'No valid UUID folders found in the selected directory.', // 新增
+  noValidFoldersFound: 'No valid UUID folders found in the selected directory.',
 };
 
 // --- Reusable TrackID Card Component ---
@@ -179,16 +179,10 @@ function AppContent({ onToggleTheme, themeMode }) {
       folderRefs.current.clear();
       setMissedPeopleCount(0);
       setMissedPeopleInput('0');
-
       const dirHandle = await window.showDirectoryPicker();
       setRootFolderName(dirHandle.name);
-      
       const processedFolders = await processDirectory(dirHandle, dirHandle.name, mode);
-      
-      if (processedFolders.length === 0) {
-        setNotification({ open: true, message: TEXTS.noValidFoldersFound });
-      }
-
+      if (processedFolders.length === 0) { setNotification({ open: true, message: TEXTS.noValidFoldersFound }); }
       setFolders(processedFolders);
       setTotalUUIDFolders(processedFolders.length);
     } catch (error) {
@@ -199,21 +193,7 @@ function AppContent({ onToggleTheme, themeMode }) {
   };
   
   const handleModeSelected = (mode) => { setIsModeSelectOpen(false); proceedToSelectFolder(mode); };
-  
-  const processDirectory = async (dirHandle, path = '', mode) => {
-    const entries = [];
-    for await (const entry of dirHandle.values()) {
-      if (entry.kind === 'directory') {
-        if (isUUIDFolder(entry.name)) {
-          entries.push(await processUUIDFolder(entry, `${path}/${entry.name}`, mode));
-        } else {
-          entries.push(...await processDirectory(entry, `${path}/${entry.name}`, mode));
-        }
-      }
-    }
-    return entries;
-  };
-  
+  const processDirectory = async (dirHandle, path = '', mode) => { const entries = []; for await (const entry of dirHandle.values()) { if (entry.kind === 'directory') { if (isUUIDFolder(entry.name)) { entries.push(await processUUIDFolder(entry, `${path}/${entry.name}`, mode)); } else { entries.push(...await processDirectory(entry, `${path}/${entry.name}`, mode)); } } } return entries; };
   const processUUIDFolder = async (dirHandle, path, mode) => {
     const imageMap = new Map();
     let appearData = null; 
@@ -265,7 +245,6 @@ function AppContent({ onToggleTheme, themeMode }) {
     imageMap.forEach(imgData => { let minDate = null; for (const fileName of imgData.fileNames) { const match = fileName.match(/^(\d{8})(\d{6})(\d{3})/); if (match) { const [, dateStr, timeStr, msStr] = match; const [year, month, day, hour, minute, second, millisecond] = [ parseInt(dateStr.substring(0, 4), 10), parseInt(dateStr.substring(4, 6), 10) - 1, parseInt(dateStr.substring(6, 8), 10), parseInt(timeStr.substring(0, 2), 10), parseInt(timeStr.substring(2, 4), 10), parseInt(timeStr.substring(4, 6), 10), parseInt(msStr, 10) ]; const currentDate = new Date(year, month, day, hour, minute, second, millisecond); if (!minDate || currentDate < minDate) minDate = currentDate; } } imgData.startTime = minDate ? `${String(minDate.getHours()).padStart(2, '0')}:${String(minDate.getMinutes()).padStart(2, '0')}:${String(minDate.getSeconds()).padStart(2, '0')}` : 'N/A'; });
     return { folderUUID: dirHandle.name.split('_').pop(), folderPath: path, images: Array.from(imageMap.values()).sort((a, b) => a.uuid.localeCompare(b.uuid)), newPeople: [], appearData: appearData };
   };
-
   const handleImageClick = (images) => { setCurrentImages(images); setModalOpen(true); };
   const closeNotification = () => setNotification({ ...notification, open: false });
   const handleAddNewPerson = (folderIndex) => { setAssignmentState({ isActive: true, folderIndex, personId: uuidv4(), isEditing: false }); setCurrentSelection(new Set()); };
@@ -291,8 +270,10 @@ function AppContent({ onToggleTheme, themeMode }) {
   const handleFilterChange = (e) => { const { name, value, type, checked } = e.target; setFilters(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value })); };
   const handleResetFilters = () => { setFilters({ durationLessThan: '', durationMoreThan: '', showFalseNegative: false, showFalsePositive: false }); };
   const handleSaveMissedPeople = () => { setMissedPeopleCount(parseInt(missedPeopleInput, 10) || 0); setIsMissedPeopleDialogOpen(false); };
+  
+  // --- Derived State & Handlers for Statistics & Navigation ---
   const incompleteFolders = folders.filter(folder => { if (folder.images.length === 0) return false; const assignedTracksCount = new Set(folder.newPeople.flatMap(p => p.assignedTracks)).size; return assignedTracksCount < folder.images.length; });
-  const correctFolders = folders.filter(f => f.newPeople.length === 1);
+  const correctFolders = folders.filter(f => f.newPeople.length === 1 && !f.newPeople[0].linkedFolderUUID); // MODIFIED
   const falseNegativeFolders = folders.filter(f => f.newPeople.length > 1);
   const falsePositiveFolders = folders.filter(f => f.newPeople.some(p => p.linkedFolderUUID));
   const adjustedTotal = totalUUIDFolders + missedPeopleCount;
