@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Box, Container, Typography, Button, Paper, Grid, Modal, Snackbar, CircularProgress, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, Tooltip, IconButton, Divider, TextField, Link, Switch, FormControlLabel, Stack, FormGroup, Checkbox, TableContainer, Table, TableHead, TableRow, TableCell, TableBody, TableFooter, ToggleButtonGroup, ToggleButton } from '@mui/material';
+import { Box, Container, Typography, Button, Paper, Grid, Modal, Snackbar, CircularProgress, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, Tooltip, IconButton, Divider, TextField, Link, Switch, FormControlLabel, Stack, FormGroup, Checkbox, TableContainer, Table, TableHead, TableRow, TableCell, TableBody, TableFooter, ToggleButtonGroup, ToggleButton, Menu, MenuItem } from '@mui/material';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 
@@ -29,6 +29,7 @@ import CallMissedOutgoingIcon from '@mui/icons-material/CallMissedOutgoing';
 import CallMissedIcon from '@mui/icons-material/CallMissed';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import VisibilityIcon from '@mui/icons-material/Visibility';
+import SettingsIcon from '@mui/icons-material/Settings';
 import { v4 as uuidv4 } from 'uuid';
 
 const TEXTS = {
@@ -53,9 +54,9 @@ const TEXTS = {
   showStaff: 'Show Staff',
   done: 'Done',
   cancel: 'Cancel',
-  confirm: 'Confirm', // 新增
-  hideStaffConfirmTitle: 'Confirm Hide Staff', // 新增
-  hideStaffConfirmContent: 'Hiding this folder will exclude it from all accuracy calculations. Recommendation: If this UUID folder corresponds to a staff member with a long duration and many tracklets (due to similar clothing), it is advisable to hide it, provided that your final report has conditions to filter out such long-duration staff entries.', // 新增
+  confirm: 'Confirm',
+  hideStaffConfirmTitle: 'Confirm Hide Staff',
+  hideStaffConfirmContent: 'Hiding this folder will exclude it from all accuracy calculations. Recommendation: If this UUID folder corresponds to a staff member with a long duration and many tracklets (due to similar clothing), it is advisable to hide it, provided that your final report has conditions to filter out such long-duration staff entries.',
   newPerson: 'New Person',
   assigningTo: 'Assigning to',
   edit: 'Edit Assignments',
@@ -137,6 +138,9 @@ const TEXTS = {
   missingExitEvents: 'Missing Exit Events',
   missingEnterEventsTooltip: 'Count of folders with at least one Counting event that has an Exit time but no matching Enter time. Excludes hidden staff.',
   missingExitEventsTooltip: 'Count of folders with at least one Counting event that has an Enter time but no matching Exit time. Excludes hidden staff.',
+  settings: 'Settings',
+  showFolderInfo: 'Show Folder Info Tables',
+  autoSelectAllOnAdd: 'Auto-select all on Add',
 };
 
 const MODE_DEFINITIONS = {
@@ -276,6 +280,7 @@ function AppContent({ onToggleTheme, themeMode }) {
   const [isDragging, setIsDragging] = useState(false);
   const [progress, setProgress] = useState({ value: 0, text: '' });
   const [isCountingMode, setIsCountingMode] = useState(false);
+  const [staffConfirmState, setStaffConfirmState] = useState({ isOpen: false, targetUUID: null });
   
   const [filters, setFilters] = useState({
       durationLessThan: '',
@@ -285,7 +290,35 @@ function AppContent({ onToggleTheme, themeMode }) {
       durationFilterType: '',
   });
   const [availableDurationFilters, setAvailableDurationFilters] = useState([]);
-  const [staffConfirmState, setStaffConfirmState] = useState({ isOpen: false, targetUUID: null }); // 新增
+  
+  // --- 新增：从localStorage初始化settings，并提供默认值 ---
+  const [settings, setSettings] = useState(() => {
+    try {
+        const savedSettings = localStorage.getItem('appSettings');
+        if (savedSettings) {
+            const parsed = JSON.parse(savedSettings);
+            // 合并默认值，以防未来新增设置项
+            return {
+                showFolderInfo: false,
+                autoSelectAll: false,
+                ...parsed
+            };
+        }
+    } catch (error) {
+        console.error("Failed to parse settings from localStorage", error);
+    }
+    return { showFolderInfo: false, autoSelectAll: false };
+  });
+  const [settingsAnchorEl, setSettingsAnchorEl] = useState(null);
+
+  // --- 新增：当settings变化时，自动保存到localStorage ---
+  useEffect(() => {
+    try {
+        localStorage.setItem('appSettings', JSON.stringify(settings));
+    } catch (error) {
+        console.error("Failed to save settings to localStorage", error);
+    }
+  }, [settings]);
   
   const handleCopy = (uuid) => { navigator.clipboard.writeText(uuid).then(() => { setNotification({ open: true, message: `${TEXTS.copied} ${uuid}` }); }); };
   const extractImageUUID = (name) => { const re = /[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/; const match = name.match(re); return match ? match[0] : null; };
@@ -644,10 +677,21 @@ function AppContent({ onToggleTheme, themeMode }) {
   
   const handleImageClick = (images) => { setCurrentImages(images); setModalOpen(true); };
   const closeNotification = () => setNotification({ ...notification, open: false });
-  const handleAddNewPerson = (folderIndex) => { setAssignmentState({ isActive: true, folderIndex, personId: uuidv4(), isEditing: false }); setCurrentSelection(new Set()); };
+  const handleAddNewPerson = (folderIndex) => {
+    setAssignmentState({ isActive: true, folderIndex, personId: uuidv4(), isEditing: false });
+    
+    if (settings.autoSelectAll) {
+        const folder = folders[folderIndex];
+        const assignedTracks = new Set(folder.newPeople.flatMap(p => p.assignedTracks));
+        const availableImages = folder.images.filter(img => !assignedTracks.has(img.uuid));
+        setCurrentSelection(new Set(availableImages.map(img => img.uuid)));
+    } else {
+        setCurrentSelection(new Set());
+    }
+  };
   const handleEditPerson = (folderIndex, person) => { setAssignmentState({ isActive: true, folderIndex, personId: person.id, isEditing: true }); setCurrentSelection(new Set(person.assignedTracks)); };
   const handleTrackClickForAssignment = (trackId) => { const newSelection = new Set(currentSelection); if (newSelection.has(trackId)) newSelection.delete(trackId); else newSelection.add(trackId); setCurrentSelection(newSelection); };
-  const handleDoneAssignment = () => { const { folderIndex, personId, isEditing } = assignmentState; setFolders(prevFolders => { const newFolders = JSON.parse(JSON.stringify(prevFolders)); const folderToUpdate = newFolders[folderIndex]; if (isEditing) { const personIndex = folderToUpdate.newPeople.findIndex(p => p.id === personId); if (personIndex !== -1) { if (currentSelection.size > 0) folderToUpdate.newPeople[personIndex].assignedTracks = Array.from(currentSelection); else folderToUpdate.newPeople.splice(personIndex, 1); } } else { if (currentSelection.size > 0) { folderToUpdate.newPeople.push({ id: personId, name: `${TEXTS.newPerson} ${folderToUpdate.newPeople.length + 1}`, assignedTracks: Array.from(currentSelection), linkedFolderUUID: null, temporaryUUID: null }); } } return newFolders; }); handleCancelAssignment(); };
+  const handleDoneAssignment = () => { const { folderIndex, personId, isEditing } = assignmentState; setFolders(prevFolders => { const newFolders = JSON.parse(JSON.stringify(prevFolders)); const folderToUpdate = newFolders[folderIndex]; if (isEditing) { const personIndex = folderToUpdate.newPeople.findIndex(p => p.id === personId); if (personIndex !== -1) { if (currentSelection.size > 0) folderToUpdate.newPeople[personIndex].assignedTracks = Array.from(currentSelection); else folderToUpdate.newPeople.splice(personIndex, 1); } } else { if (currentSelection.size > 0) { folderToUpdate.newPeople.push({ id: personId, name: `${TEXTS.newPerson}`, assignedTracks: Array.from(currentSelection), linkedFolderUUID: null, temporaryUUID: null }); } } return newFolders; }); handleCancelAssignment(); };
   const handleCancelAssignment = () => { setAssignmentState({ isActive: false, folderIndex: null, personId: null, isEditing: false }); setCurrentSelection(new Set()); };
   const handleStartRename = (person) => setRenamingState({ personId: person.id, currentName: person.name });
   const handleRenameChange = (e) => setRenamingState({ ...renamingState, currentName: e.target.value });
@@ -708,6 +752,13 @@ function AppContent({ onToggleTheme, themeMode }) {
     handleCloseStaffConfirm();
   };
 
+  const handleOpenSettings = (event) => setSettingsAnchorEl(event.currentTarget);
+  const handleCloseSettings = () => setSettingsAnchorEl(null);
+  const handleSettingChange = (event) => {
+    const { name, checked } = event.target;
+    setSettings(prev => ({ ...prev, [name]: checked }));
+  };
+
   const activeFolders = useMemo(() => folders.filter(f => !f.isStaff), [folders]);
   const incompleteFolders = useMemo(() => activeFolders.filter(folder => { if (folder.images.length === 0) return false; const assignedTracksCount = new Set(folder.newPeople.flatMap(p => p.assignedTracks)).size; return assignedTracksCount < folder.images.length; }), [activeFolders]);
   const correctFolders = useMemo(() => activeFolders.filter(f => f.newPeople.length === 1 && !f.newPeople[0].linkedFolderUUID), [activeFolders]);
@@ -762,6 +813,7 @@ function AppContent({ onToggleTheme, themeMode }) {
             <Typography variant="h4" component="h1" gutterBottom>{TEXTS.title}</Typography>
             <Box>
                 <Tooltip title={TEXTS.userManual}><IconButton onClick={() => setManualOpen(true)} color="inherit"><HelpOutlineIcon /></IconButton></Tooltip>
+                <Tooltip title={TEXTS.settings}><IconButton onClick={handleOpenSettings} color="inherit"><SettingsIcon /></IconButton></Tooltip>
                 <Tooltip title={TEXTS.toggleTheme}><IconButton sx={{ ml: 1 }} onClick={onToggleTheme} color="inherit">{themeMode === 'dark' ? <Brightness7Icon /> : <Brightness4Icon />}</IconButton></Tooltip>
             </Box>
         </Box>
@@ -863,16 +915,14 @@ function AppContent({ onToggleTheme, themeMode }) {
                 <Grid container spacing={2}>
                   {filteredFolders.map((folder, folderIndex) => { const imageMap = new Map(folder.images.map(img => [img.uuid, img])); let tracksToHide = new Set(); if (assignmentState.isActive && assignmentState.folderIndex === folderIndex) { folder.newPeople.forEach(p => { if (p.id !== assignmentState.personId) p.assignedTracks.forEach(trackId => tracksToHide.add(trackId)); }); } else { tracksToHide = new Set(folder.newPeople.flatMap(p => p.assignedTracks)); } const availableImages = folder.images.filter(img => !tracksToHide.has(img.uuid)); const currentPersonIndex = folder.newPeople.findIndex(p => p.id === assignmentState.personId); return ( <Grid item xs={12} key={folder.folderUUID} ref={node => { const map = folderRefs.current; if (node) map.set(folder.folderUUID, node); else map.delete(folder.folderUUID); }}> <Paper sx={{ p: 2, opacity: folder.isStaff ? 0.5 : 1, transition: 'opacity 300ms ease-in-out' }}><Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}><Box sx={{ display: 'flex', alignItems: 'center' }}><Typography variant="h6">UUID: {folder.folderUUID}</Typography><Button size="small" variant="outlined" onClick={() => handleCopy(folder.folderUUID)} sx={{ ml: 1 }}>{TEXTS.copyUUID}</Button></Box>{assignmentState.isActive && assignmentState.folderIndex === folderIndex ? (<Box sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1, border: '1px solid', borderColor: 'primary.main', borderRadius: 1 }}><Typography variant="subtitle2" color="primary">{assignmentState.isEditing ? `${TEXTS.editing} "${folder.newPeople[currentPersonIndex]?.name}"` : `${TEXTS.assigningTo} ${TEXTS.newPerson}`}</Typography><Button variant="contained" size="small" onClick={handleDoneAssignment}>{TEXTS.done}</Button><Button variant="outlined" size="small" onClick={handleCancelAssignment}>{TEXTS.cancel}</Button></Box>) : ( <Box sx={{display: 'flex', gap: 1}}><Button variant="outlined" color="secondary" size="small" startIcon={folder.isStaff ? <VisibilityIcon/> : <VisibilityOffIcon/>} onClick={() => triggerToggleStaff(folder.folderUUID)}>{folder.isStaff ? TEXTS.showStaff : TEXTS.hideStaff}</Button><Button variant="contained" onClick={() => handleAddNewPerson(folderIndex)} disabled={assignmentState.isActive || renamingState.personId}>{TEXTS.addNewPerson}</Button></Box> )} </Box>
                   
-                  {folder.eventData && Object.keys(folder.eventData).length > 0 && (
+                  {settings.showFolderInfo && folder.eventData && Object.keys(folder.eventData).length > 0 && (
                       <Box sx={{ mt: 1.5, width: '100%' }}>
                           {Object.entries(folder.eventData).map(([modeKey, events]) => {
                             const modeInfo = MODE_DEFINITIONS[modeKey];
                             if (!modeInfo || events.length === 0) return null;
-
                             const totalDuration = (modeKey === 'counting_only' || modeKey === 'dwelling_only')
                                 ? events.reduce((sum, event) => sum + (parseFloat(event.duration) || 0), 0)
                                 : 0;
-                            
                             return (
                               <Box key={modeKey} sx={{ mb: 1.5 }}>
                                   <Typography variant="subtitle2" gutterBottom>{modeInfo.title}:</Typography>
@@ -910,7 +960,7 @@ function AppContent({ onToggleTheme, themeMode }) {
                   )}
 
                   <Divider sx={{ my: 2 }} /> 
-                  <Box sx={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1}}><Typography variant="subtitle1">{TEXTS.unassignedTracks}</Typography>{assignmentState.isActive && assignmentState.folderIndex === folderIndex && availableImages.length > 0 && (<Button size="small" onClick={() => currentSelection.size === availableImages.length ? handleDeselectAll() : handleSelectAll(availableImages)}>{currentSelection.size === availableImages.length ? TEXTS.deselectAll : TEXTS.selectAll}</Button>)}</Box>{availableImages.length > 0 ? (<Grid container spacing={1}>{availableImages.map((image) => { const isSelected = currentSelection.has(image.uuid); const cardSx = { borderWidth: '2px', borderColor: isSelected ? 'primary.main' : 'error.main', transform: isSelected ? 'scale(0.95)' : 'none', transition: 'all 0.2s ease-in-out' }; return ( <Grid item xs={6} sm={4} md={2} lg={1} key={image.uuid}> <TrackIDCard image={image} sx={cardSx} onCopy={handleCopy} onClick={assignmentState.isActive && assignmentState.folderIndex === folderIndex ? () => handleTrackClickForAssignment(image.uuid) : () => handleImageClick(image.relatedImages)} /> </Grid> )})}</Grid>) : (<Typography variant="subtitle1" sx={{ color: 'text.secondary' }}>{TEXTS.unassignedTracksNone}</Typography>)}{!(assignmentState.isActive && assignmentState.isEditing && assignmentState.folderIndex === folderIndex) && folder.newPeople.length > 0 && (<Box><Divider sx={{ my: 2 }}/><Typography variant="subtitle1" sx={{ mb: 1 }}>{TEXTS.assignedPeople}</Typography>{folder.newPeople.map((person, personIndex) => (<Paper key={person.id} variant="outlined" sx={{ p: 2, mb: 2 }}><Box sx={{display: 'flex', alignItems: 'center', mb: 1}}>{renamingState.personId === person.id ? (<TextField value={renamingState.currentName} onChange={handleRenameChange} onKeyDown={handleRenameKeyDown} onBlur={handleSaveRename} size="small" variant="standard" autoFocus sx={{ flexGrow: 1, mr: 1, '& .MuiInputBase-input': { fontSize: '1.25rem', fontWeight: '500' } }} />) : (<Typography variant="h6" gutterBottom sx={{flexGrow: 1, mb: 0}}>{person.name || `${TEXTS.newPerson} ${personIndex + 1}`}</Typography>)}{renamingState.personId !== person.id && (<><Tooltip title={TEXTS.linkToUUID}><span><IconButton size="small" onClick={() => handleOpenLinkDialog(person, folderIndex)} disabled={assignmentState.isActive || renamingState.personId}><LinkIcon /></IconButton></span></Tooltip><Tooltip title={TEXTS.rename}><span><IconButton size="small" onClick={() => handleStartRename(person)} disabled={assignmentState.isActive || renamingState.personId}><DriveFileRenameOutlineIcon /></IconButton></span></Tooltip><Tooltip title={TEXTS.edit}><span><IconButton size="small" onClick={() => handleEditPerson(folderIndex, person)} disabled={assignmentState.isActive || renamingState.personId}><EditIcon /></IconButton></span></Tooltip></>)}</Box><Grid container spacing={1}>{person.assignedTracks.map(trackId => ( imageMap.has(trackId) ? (<Grid item xs={6} sm={4} md={2} lg={1} key={trackId}><TrackIDCard image={imageMap.get(trackId)} sx={{ borderColor: 'primary.main', borderWidth: '2px' }} onCopy={handleCopy} onClick={() => handleImageClick(imageMap.get(trackId).relatedImages)}/></Grid>) : null ))}</Grid>{person.linkedFolderUUID && ( <Box sx={{mt: 1, display: 'flex', alignItems: 'center', gap: 0.5}}><Typography variant="body2" sx={{ color: 'text.secondary' }}>{TEXTS.linkedTo}:</Typography><Link component="button" variant="body2" onClick={() => handleScrollToUUID(person.linkedFolderUUID)} sx={{ color: 'text.secondary', textDecoration: 'none', '&:hover': {textDecoration: 'underline'} }}>{person.linkedFolderUUID}</Link><Tooltip title={TEXTS.unlink}><IconButton size="small" sx={{p: 0.2}} onClick={() => handleUnlink(person.id, folderIndex)}><CloseIcon sx={{ fontSize: '1rem' }} /></IconButton></Tooltip></Box>)}{person.temporaryUUID ? (<Box sx={{mt: 1, display: 'flex', alignItems: 'center', gap: 0.5}}><Typography variant="body2" sx={{ color: 'text.secondary' }}>{TEXTS.temporaryUUID}:</Typography><Typography variant="body2" sx={{ color: 'text.secondary', fontFamily: 'monospace', wordBreak: 'break-all' }}>{person.temporaryUUID}</Typography><Tooltip title={TEXTS.copyTrackID}><IconButton size="small" sx={{p: 0.2}} onClick={() => handleCopy(person.temporaryUUID)}><ContentCopyIcon sx={{ fontSize: '1rem' }} /></IconButton></Tooltip><Tooltip title={TEXTS.deleteTemporaryUUID}><IconButton size="small" sx={{p: 0.2}} onClick={() => handleDeleteTemporaryUUID(folderIndex, person.id)}><CloseIcon sx={{ fontSize: '1rem' }} /></IconButton></Tooltip></Box>) : ( <Button startIcon={<AddCircleOutlineIcon/>} onClick={() => handleGenerateTemporaryUUID(folderIndex, person.id)} size="small" sx={{mt: 1, p: 0.2}}> {TEXTS.generateTemporaryUUID} </Button> )}</Paper>))}</Box>)} </Paper> </Grid> )})}
+                  <Box sx={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1}}><Typography variant="subtitle1">{TEXTS.unassignedTracks}</Typography>{assignmentState.isActive && assignmentState.folderIndex === folderIndex && availableImages.length > 0 && (<Button size="small" onClick={() => currentSelection.size === availableImages.length ? handleDeselectAll() : handleSelectAll(availableImages)}>{currentSelection.size === availableImages.length ? TEXTS.deselectAll : TEXTS.selectAll}</Button>)}</Box>{availableImages.length > 0 ? (<Grid container spacing={1}>{availableImages.map((image) => { const isSelected = currentSelection.has(image.uuid); const cardSx = { borderWidth: '2px', borderColor: isSelected ? 'primary.main' : 'error.main', transform: isSelected ? 'scale(0.95)' : 'none', transition: 'all 0.2s ease-in-out' }; return ( <Grid item xs={6} sm={4} md={2} lg={1} key={image.uuid}> <TrackIDCard image={image} sx={cardSx} onCopy={handleCopy} onClick={assignmentState.isActive && assignmentState.folderIndex === folderIndex ? () => handleTrackClickForAssignment(image.uuid) : () => handleImageClick(image.relatedImages)} /> </Grid> )})}</Grid>) : (<Typography variant="subtitle1" sx={{ color: 'text.secondary' }}>{TEXTS.unassignedTracksNone}</Typography>)}{!(assignmentState.isActive && assignmentState.isEditing && assignmentState.folderIndex === folderIndex) && folder.newPeople.length > 0 && (<Box><Divider sx={{ my: 2 }}/><Typography variant="subtitle1" sx={{ mb: 1 }}>{TEXTS.assignedPeople}</Typography>{folder.newPeople.map((person, personIndex) => (<Paper key={person.id} variant="outlined" sx={{ p: 2, mb: 2 }}><Box sx={{display: 'flex', alignItems: 'center', mb: 1}}>{renamingState.personId === person.id ? (<TextField value={renamingState.currentName} onChange={handleRenameChange} onKeyDown={handleRenameKeyDown} onBlur={handleSaveRename} size="small" variant="standard" autoFocus sx={{ flexGrow: 1, mr: 1, '& .MuiInputBase-input': { fontSize: '1.25rem', fontWeight: '500' } }} />) : (<Typography variant="h6" gutterBottom sx={{flexGrow: 1, mb: 0}}>{person.name || `${TEXTS.newPerson}`}</Typography>)}{renamingState.personId !== person.id && (<><Tooltip title={TEXTS.linkToUUID}><span><IconButton size="small" onClick={() => handleOpenLinkDialog(person, folderIndex)} disabled={assignmentState.isActive || renamingState.personId}><LinkIcon /></IconButton></span></Tooltip><Tooltip title={TEXTS.rename}><span><IconButton size="small" onClick={() => handleStartRename(person)} disabled={assignmentState.isActive || renamingState.personId}><DriveFileRenameOutlineIcon /></IconButton></span></Tooltip><Tooltip title={TEXTS.edit}><span><IconButton size="small" onClick={() => handleEditPerson(folderIndex, person)} disabled={assignmentState.isActive || renamingState.personId}><EditIcon /></IconButton></span></Tooltip></>)}</Box><Grid container spacing={1}>{person.assignedTracks.map(trackId => ( imageMap.has(trackId) ? (<Grid item xs={6} sm={4} md={2} lg={1} key={trackId}><TrackIDCard image={imageMap.get(trackId)} sx={{ borderColor: 'primary.main', borderWidth: '2px' }} onCopy={handleCopy} onClick={() => handleImageClick(imageMap.get(trackId).relatedImages)}/></Grid>) : null ))}</Grid>{person.linkedFolderUUID && ( <Box sx={{mt: 1, display: 'flex', alignItems: 'center', gap: 0.5}}><Typography variant="body2" sx={{ color: 'text.secondary' }}>{TEXTS.linkedTo}:</Typography><Link component="button" variant="body2" onClick={() => handleScrollToUUID(person.linkedFolderUUID)} sx={{ color: 'text.secondary', textDecoration: 'none', '&:hover': {textDecoration: 'underline'} }}>{person.linkedFolderUUID}</Link><Tooltip title={TEXTS.unlink}><IconButton size="small" sx={{p: 0.2}} onClick={() => handleUnlink(person.id, folderIndex)}><CloseIcon sx={{ fontSize: '1rem' }} /></IconButton></Tooltip></Box>)}{person.temporaryUUID ? (<Box sx={{mt: 1, display: 'flex', alignItems: 'center', gap: 0.5}}><Typography variant="body2" sx={{ color: 'text.secondary' }}>{TEXTS.temporaryUUID}:</Typography><Typography variant="body2" sx={{ color: 'text.secondary', fontFamily: 'monospace', wordBreak: 'break-all' }}>{person.temporaryUUID}</Typography><Tooltip title={TEXTS.copyTrackID}><IconButton size="small" sx={{p: 0.2}} onClick={() => handleCopy(person.temporaryUUID)}><ContentCopyIcon sx={{ fontSize: '1rem' }} /></IconButton></Tooltip><Tooltip title={TEXTS.deleteTemporaryUUID}><IconButton size="small" sx={{p: 0.2}} onClick={() => handleDeleteTemporaryUUID(folderIndex, person.id)}><CloseIcon sx={{ fontSize: '1rem' }} /></IconButton></Tooltip></Box>) : ( <Button startIcon={<AddCircleOutlineIcon/>} onClick={() => handleGenerateTemporaryUUID(folderIndex, person.id)} size="small" sx={{mt: 1, p: 0.2}}> {TEXTS.generateTemporaryUUID} </Button> )}</Paper>))}</Box>)} </Paper> </Grid> )})}
                 </Grid>
             </>
         )}
@@ -920,12 +970,8 @@ function AppContent({ onToggleTheme, themeMode }) {
         <Dialog open={isLoading} disableEscapeKeyDown>
             <DialogContent sx={{ textAlign: 'center', p: 4 }}>
                 <CircularProgressWithLabel value={progress.value} />
-                <DialogContentText sx={{ mt: 2 }}>
-                    {loadingMessage}
-                </DialogContentText>
-                 <DialogContentText variant="body2" sx={{ color: 'text.secondary', minHeight: '1.2em' }}>
-                    {progress.text}
-                </DialogContentText>
+                <DialogContentText sx={{ mt: 2 }}>{loadingMessage}</DialogContentText>
+                 <DialogContentText variant="body2" sx={{ color: 'text.secondary', minHeight: '1.2em' }}>{progress.text}</DialogContentText>
             </DialogContent>
         </Dialog>
         
@@ -938,22 +984,14 @@ function AppContent({ onToggleTheme, themeMode }) {
         <Dialog open={isModeSelectOpen} onClose={() => setIsModeSelectOpen(false)}>
             <DialogTitle>{TEXTS.selectImportMode}</DialogTitle>
             <DialogContent>
-                <DialogContentText sx={{mb: 2}}>
-                    The following data types were found. Please select which ones to load.
-                </DialogContentText>
+                <DialogContentText sx={{mb: 2}}>The following data types were found. Please select which ones to load.</DialogContentText>
                 <FormGroup>
                     {availableModes.map(modeKey => {
                         const modeInfo = MODE_DEFINITIONS[modeKey];
                         return (
                             <Box key={modeKey} sx={{mb: 1}}>
                                <FormControlLabel 
-                                 control={
-                                    <Checkbox 
-                                        checked={userSelectedModes.has(modeKey)} 
-                                        onChange={handleModeSelectionChange} 
-                                        name={modeKey} 
-                                    />
-                                 } 
+                                 control={<Checkbox checked={userSelectedModes.has(modeKey)} onChange={handleModeSelectionChange} name={modeKey} />} 
                                  label={modeInfo.text} 
                                />
                                <Typography variant="caption" sx={{display: 'block', pl: 4}}>{modeInfo.description}</Typography>
@@ -967,7 +1005,6 @@ function AppContent({ onToggleTheme, themeMode }) {
                 <Button onClick={handleProceedWithLoading} variant="contained">{TEXTS.proceed}</Button>
             </DialogActions>
         </Dialog>
-        {/* --- 新增的确认对话框 --- */}
         <Dialog open={staffConfirmState.isOpen} onClose={handleCloseStaffConfirm}>
             <DialogTitle>{TEXTS.hideStaffConfirmTitle}</DialogTitle>
             <DialogContent>
@@ -978,16 +1015,44 @@ function AppContent({ onToggleTheme, themeMode }) {
                 <Button onClick={handleConfirmHideStaff} variant="contained" color="warning">{TEXTS.confirm}</Button>
             </DialogActions>
         </Dialog>
+        <Menu
+          anchorEl={settingsAnchorEl}
+          open={Boolean(settingsAnchorEl)}
+          onClose={handleCloseSettings}
+          MenuListProps={{ 'aria-labelledby': 'settings-button' }}
+        >
+          <MenuItem onClick={(e) => e.stopPropagation()} sx={{ '&:hover': { backgroundColor: 'transparent' } }}>
+            <FormControlLabel
+              control={<Switch checked={settings.showFolderInfo} onChange={handleSettingChange} name="showFolderInfo" />}
+              label={TEXTS.showFolderInfo}
+            />
+          </MenuItem>
+          <MenuItem onClick={(e) => e.stopPropagation()} sx={{ '&:hover': { backgroundColor: 'transparent' } }}>
+            <FormControlLabel
+              control={<Switch checked={settings.autoSelectAll} onChange={handleSettingChange} name="autoSelectAll" />}
+              label={TEXTS.autoSelectAllOnAdd}
+            />
+          </MenuItem>
+        </Menu>
+
       </Box>
     </Container>
   );
 }
 
 export default function App() {
-  const [themeMode, setThemeMode] = useState(() => localStorage.getItem('themeMode') || 'dark');
-  useEffect(() => { localStorage.setItem('themeMode', themeMode); }, [themeMode]);
+  const [themeMode, setThemeMode] = useState(() => {
+    const savedTheme = localStorage.getItem('themeMode');
+    return savedTheme || 'dark';
+  });
+
+  useEffect(() => { 
+    localStorage.setItem('themeMode', themeMode); 
+  }, [themeMode]);
+
   const theme = useMemo(() => createTheme({ palette: { mode: themeMode } }), [themeMode]);
   const toggleTheme = () => { setThemeMode(prevMode => (prevMode === 'light' ? 'dark' : 'light')); };
+  
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
