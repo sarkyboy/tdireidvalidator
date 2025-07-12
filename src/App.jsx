@@ -47,7 +47,7 @@ const TEXTS = {
   scanningStructure: 'Scanning folder structure...',
   loadingImages: 'Loading image data...',
   totalIdentities: 'Total UUID Folders',
-  totalTracks: 'Total Tracks',
+  totalTracks: 'Total Tracks',
   copyUUID: 'Copy UUID',
   copyTrackID: 'Copy Track ID',
   relatedImages: 'Related Images',
@@ -88,9 +88,9 @@ const TEXTS = {
   generateTemporaryUUID: 'Generate Temporary UUID',
   temporaryUUID: 'Temporary UUID',
   deleteTemporaryUUID: 'Delete Temporary UUID',
-  correctUUIDs: 'Correct UUIDs', // <<< THIS WAS THE MISSING LINE
-  falseNegativeIndex: 'False Negative Index (Merging)',
-  falsePositiveIndex: 'False Positive Index (Splitting)',
+  correctUUIDs: 'Correct UUIDs', // <<< THIS WAS THE MISSING LINE
+  falseNegativeIndex: 'False Negative Index (Merging)',
+  falsePositiveIndex: 'False Positive Index (Splitting)',
   closeNavigation: 'Close Navigation',
   reIdAccuracy: 'Re-ID Accuracy',
   toggleTheme: 'Toggle light/dark theme',
@@ -107,10 +107,10 @@ const TEXTS = {
   reset: 'Reset',
   totalIdentitiesTooltip: 'The total number of unique top-level UUID folders found in the selected directory, excluding hidden staff.',
   incompleteFoldersTooltip: 'The number of folders where not all Track IDs have been assigned to a person, excluding hidden staff.',
-  reIdAccuracyTooltip: 'Calculated as (Correct UUIDs / (Total Assigned Persons + Missed People)). Excludes hidden staff. Green: >= 85%, Yellow: 75%-85%, Red: < 75%.',
-  correctUUIDsTooltip: 'The number of folders that contain exactly one "Assigned Person" group, and that group is not linked to any other UUID. Excludes hidden staff.',
-  falseNegativeIndexTooltip: 'Average number of tracks per False Negative folder. Measures the average severity of merging errors. Calculated as (Total tracks in FN folders) / (Number of FN folders).',
-  falsePositiveIndexTooltip: 'Average number of split tracks per False Positive folder. Measures the average severity of splitting errors. Calculated as (Total tracks of linked-out persons) / (Number of FP folders).',
+  reIdAccuracyTooltip: 'Calculated as (Correct UUIDs / (Total Assigned Persons + Missed People)). Excludes hidden staff. Green: >= 85%, Yellow: 75%-85%, Red: < 75%.',
+  correctUUIDsTooltip: 'The number of folders that contain exactly one "Assigned Person" group, and that group is not linked to any other UUID. Excludes hidden staff.',
+  falseNegativeIndexTooltip: 'Average number of tracks per False Negative folder. Measures the average severity of merging errors. Calculated as (Total tracks in FN folders) / (Number of FN folders).',
+  falsePositiveIndexTooltip: 'Average number of split tracks per False Positive folder. Measures the average severity of splitting errors. Calculated as (Total tracks of linked-out persons) / (Number of FP folders).',
   userManual: 'User Manual',
   userManualTitle: 'User Manual Guide',
   userManualContent: 'For detailed instructions, please log in to the official documentation site and navigate to "Tools -> Re-ID Accuracy Analysis Tool".',
@@ -118,7 +118,7 @@ const TEXTS = {
   close: 'Close',
   adjustTotal: 'Adjust Total Persons',
   missedPeopleLabel: 'Number of people not captured',
-  missedPeopleHelper: 'Enter a number to compensate for missed identities. This will be added to the total assigned persons for the accuracy calculation.',
+  missedPeopleHelper: 'Enter a number to compensate for missed identities. This will be added to the total assigned persons for the accuracy calculation.',
   selectAll: 'Select All',
   deselectAll: 'Deselect All',
   selectImportMode: 'Select Data Modes to Load',
@@ -144,12 +144,12 @@ const TEXTS = {
   settings: 'Settings',
   showFolderInfo: 'Show Folder Info Tables',
   autoSelectAllOnAdd: 'Auto-select all on Add',
-  history: 'History',
-  restore: 'Restore',
-  progressRestored: 'Progress for dataset restored successfully!',
-  progressAutoSaved: (time) => `Progress auto-saved at ${time}`,
-  totalAssignedPersons: 'Total Assigned Persons',
-  totalAssignedPersonsTooltip: 'The total number of "Assigned Person" groups created across all non-hidden folders.',
+  history: 'History',
+  restore: 'Restore',
+  progressRestored: 'Progress for dataset restored successfully!',
+  progressAutoSaved: (time) => `Progress auto-saved at ${time}`,
+  totalAssignedPersons: 'Total Assigned Persons',
+  totalAssignedPersonsTooltip: 'The total number of "Assigned Person" groups created across all non-hidden folders.',
 };
 
 const MODE_DEFINITIONS = {
@@ -186,7 +186,7 @@ const StatItem = ({ icon, label, tooltipText, value, valueSx, onClick, onEdit, s
             <Box sx={{display: 'flex', alignItems: 'center', gap: 0.5}}>
                 <Typography variant="body1" color="text.secondary">{label}</Typography>
                 <Tooltip title={tooltipText}><InfoOutlinedIcon sx={{fontSize: '1rem', color: 'action.active', cursor: 'help'}}/></Tooltip>
-                {secondaryInfo && <Tooltip title={`${TEXTS.totalTracks}: ${secondaryInfo}`}><InfoOutlinedIcon sx={{fontSize: '1rem', color: 'action.active', cursor: 'help'}}/></Tooltip>}
+                {secondaryInfo && <Tooltip title={`${TEXTS.totalTracks}: ${secondaryInfo}`}><InfoOutlinedIcon sx={{fontSize: '1rem', color: 'action.active', cursor: 'help'}}/></Tooltip>}
             </Box>
           <ValueComponent component={onClick ? 'button' : 'div'} onClick={onClick} sx={{ fontSize: '1.75rem', fontWeight: 'bold', lineHeight: 1.2, color: 'text.primary', cursor: onClick ? 'pointer' : 'default', textDecoration: 'none', '&:hover': { textDecoration: onClick ? 'underline': 'none' }, ...valueSx }}>{value}</ValueComponent>
         </Box>
@@ -295,8 +295,8 @@ function AppContent({ onToggleTheme, themeMode }) {
   const [progress, setProgress] = useState({ value: 0, text: '' });
   const [isCountingMode, setIsCountingMode] = useState(false);
   const [staffConfirmState, setStaffConfirmState] = useState({ isOpen: false, targetUUID: null });
-  const [history, setHistory] = useState([]);
-  const [historyAnchorEl, setHistoryAnchorEl] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [historyAnchorEl, setHistoryAnchorEl] = useState(null);
   
   const [filters, setFilters] = useState({
       durationLessThan: '',
@@ -321,92 +321,92 @@ function AppContent({ onToggleTheme, themeMode }) {
   });
   const [settingsAnchorEl, setSettingsAnchorEl] = useState(null);
 
-  // --- Refs for interval saving to get latest state ---
-  const stateRef = useRef({});
-  stateRef.current = {
-      folders,
-      missedPeopleCount,
-      rootFolderName,
-      datasetFolderName,
-      userSelectedModes,
-      history,
-      isLoading
-  };
+  // --- Refs for interval saving to get latest state ---
+  const stateRef = useRef({});
+  stateRef.current = {
+      folders,
+      missedPeopleCount,
+      rootFolderName,
+      datasetFolderName,
+      userSelectedModes,
+      history,
+      isLoading
+  };
 
   useEffect(() => {
     try { localStorage.setItem('appSettings', JSON.stringify(settings)); } catch (error) { console.error("Failed to save settings to localStorage", error); }
   }, [settings]);
 
-  useEffect(() => {
-    try {
-        const savedHistory = localStorage.getItem(HISTORY_LOG_KEY);
-        if(savedHistory) {
-            setHistory(JSON.parse(savedHistory));
-        }
-    } catch (e) {
-        console.error("Could not load history", e);
-        setHistory([]);
-    }
-  }, []);
+  useEffect(() => {
+    try {
+        const savedHistory = localStorage.getItem(HISTORY_LOG_KEY);
+        if(savedHistory) {
+            setHistory(JSON.parse(savedHistory));
+        }
+    } catch (e) {
+        console.error("Could not load history", e);
+        setHistory([]);
+    }
+  }, []);
 
-  // --- Auto-save progress every 5 minutes ---
-  useEffect(() => {
-    const intervalId = setInterval(() => {
-        const {
-            folders,
-            missedPeopleCount,
-            rootFolderName,
-            datasetFolderName,
-            userSelectedModes,
-            history,
-            isLoading
-        } = stateRef.current;
+  // --- Auto-save progress every 5 minutes ---
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+        const {
+            folders,
+            missedPeopleCount,
+            rootFolderName,
+            datasetFolderName,
+            userSelectedModes,
+            history,
+            isLoading
+        } = stateRef.current;
 
-        if (!datasetFolderName || isLoading || folders.length === 0) {
-            return;
-        }
+        if (!datasetFolderName || isLoading || folders.length === 0) {
+            return;
+        }
 
-        try {
-            const dataToSave = {
-                version: 2,
-                rootFolderName,
-                datasetFolderName,
-                missedPeopleCount,
-                userSelectedModes: Array.from(userSelectedModes),
-                foldersData: folders.map(folder => ({
-                    folderUUID: folder.folderUUID,
-                    newPeople: folder.newPeople,
-                    isStaff: folder.isStaff,
-                }))
-            };
+        try {
+            const dataToSave = {
+                version: 2,
+                rootFolderName,
+                datasetFolderName,
+                missedPeopleCount,
+                userSelectedModes: Array.from(userSelectedModes),
+                foldersData: folders.map(folder => ({
+                    folderUUID: folder.folderUUID,
+                    newPeople: folder.newPeople,
+                    isStaff: folder.isStaff,
+                }))
+            };
 
-            const progressKey = `${PROGRESS_KEY_PREFIX}${datasetFolderName}`;
-            localStorage.setItem(progressKey, JSON.stringify(dataToSave));
+            const progressKey = `${PROGRESS_KEY_PREFIX}${datasetFolderName}`;
+            localStorage.setItem(progressKey, JSON.stringify(dataToSave));
 
-            const newHistoryEntry = {
-                rootFolderName,
-                datasetFolderName,
-                timestamp: new Date().toISOString(),
-                progressKey,
-            };
+            const newHistoryEntry = {
+                rootFolderName,
+                datasetFolderName,
+                timestamp: new Date().toISOString(),
+                progressKey,
+            };
 
-            let updatedHistory = history.filter(h => h.datasetFolderName !== datasetFolderName);
-            updatedHistory.unshift(newHistoryEntry);
-            if (updatedHistory.length > MAX_HISTORY_ITEMS) {
-                updatedHistory = updatedHistory.slice(0, MAX_HISTORY_ITEMS);
-            }
-            
-            localStorage.setItem(HISTORY_LOG_KEY, JSON.stringify(updatedHistory));
-            setHistory(updatedHistory);
-            setNotification({ open: true, message: TEXTS.progressAutoSaved(new Date().toLocaleTimeString()) });
+            let updatedHistory = history.filter(h => h.datasetFolderName !== datasetFolderName);
+            updatedHistory.unshift(newHistoryEntry);
+            if (updatedHistory.length > MAX_HISTORY_ITEMS) {
+                updatedHistory = updatedHistory.slice(0, MAX_HISTORY_ITEMS);
+            }
+            
+            localStorage.setItem(HISTORY_LOG_KEY, JSON.stringify(updatedHistory));
+            setHistory(updatedHistory);
+            setNotification({ open: true, message: TEXTS.progressAutoSaved(new Date().toLocaleTimeString()) });
 
-        } catch (error) {
-            console.error("Failed to auto-save progress in interval:", error);
-        }
-    }, AUTO_SAVE_INTERVAL);
+        } catch (error) {
+            console.error("Failed to auto-save progress in interval:", error);
+        }
+    }, AUTO_SAVE_INTERVAL);
 
-    return () => clearInterval(intervalId);
-  }, []); // Empty dependency array ensures this runs only on mount and unmount
+    return () => clearInterval(intervalId);
+  }, []); // Empty dependency array ensures this runs only on mount and unmount
 
 
   const handleCopy = (uuid) => { navigator.clipboard.writeText(uuid).then(() => { setNotification({ open: true, message: `${TEXTS.copied} ${uuid}` }); }); };
@@ -761,33 +761,33 @@ function AppContent({ onToggleTheme, themeMode }) {
   const handleOpenSettings = (event) => setSettingsAnchorEl(event.currentTarget);
   const handleCloseSettings = () => setSettingsAnchorEl(null);
   const handleSettingChange = (event) => { const { name, checked } = event.target; setSettings(prev => ({ ...prev, [name]: checked })); };
-  const handleOpenHistory = (event) => setHistoryAnchorEl(event.currentTarget);
-  const handleCloseHistory = () => setHistoryAnchorEl(null);
-  const handleRestoreHistory = (historyItem) => {
-    handleCloseHistory();
-    const progressJson = localStorage.getItem(historyItem.progressKey);
-    if (progressJson) {
-        try {
-            const progress = JSON.parse(progressJson);
-            setRootFolderName(progress.rootFolderName || '');
-            setDatasetFolderName(progress.datasetFolderName || '');
-            setMissedPeopleCount(progress.missedPeopleCount || 0);
-            setMissedPeopleInput(String(progress.missedPeopleCount || 0));
-            setUserSelectedModes(new Set(progress.userSelectedModes || []));
+  const handleOpenHistory = (event) => setHistoryAnchorEl(event.currentTarget);
+  const handleCloseHistory = () => setHistoryAnchorEl(null);
+  const handleRestoreHistory = (historyItem) => {
+    handleCloseHistory();
+    const progressJson = localStorage.getItem(historyItem.progressKey);
+    if (progressJson) {
+        try {
+            const progress = JSON.parse(progressJson);
+            setRootFolderName(progress.rootFolderName || '');
+            setDatasetFolderName(progress.datasetFolderName || '');
+            setMissedPeopleCount(progress.missedPeopleCount || 0);
+            setMissedPeopleInput(String(progress.missedPeopleCount || 0));
+            setUserSelectedModes(new Set(progress.userSelectedModes || []));
 
-            const importMap = new Map(progress.foldersData.map(item => [item.folderUUID, {newPeople: item.newPeople, isStaff: item.isStaff || false}]));
-            setFolders(currentFolders => currentFolders.map(folder =>
-                importMap.has(folder.folderUUID)
-                ? { ...folder, newPeople: importMap.get(folder.folderUUID).newPeople, isStaff: importMap.get(folder.folderUUID).isStaff }
-                : folder
-            ));
-            setNotification({ open: true, message: TEXTS.progressRestored });
-        } catch(e) {
-            console.error("Failed to restore history", e);
-            setNotification({ open: true, message: "Failed to restore progress." });
-        }
-    }
-  };
+            const importMap = new Map(progress.foldersData.map(item => [item.folderUUID, {newPeople: item.newPeople, isStaff: item.isStaff || false}]));
+            setFolders(currentFolders => currentFolders.map(folder =>
+                importMap.has(folder.folderUUID)
+                ? { ...folder, newPeople: importMap.get(folder.folderUUID).newPeople, isStaff: importMap.get(folder.folderUUID).isStaff }
+                : folder
+            ));
+            setNotification({ open: true, message: TEXTS.progressRestored });
+        } catch(e) {
+            console.error("Failed to restore history", e);
+            setNotification({ open: true, message: "Failed to restore progress." });
+        }
+    }
+  };
 
 
   const activeFolders = useMemo(() => folders.filter(f => !f.isStaff), [folders]);
@@ -798,35 +798,30 @@ function AppContent({ onToggleTheme, themeMode }) {
   const missingEnterFolders = useMemo(() => { if (!isCountingMode) return []; return activeFolders.filter(folder => folder.eventData?.counting_only?.some(event => !event.isComplete && event.endTime !== 'N/A')); }, [activeFolders, isCountingMode]);
   const missingExitFolders = useMemo(() => { if (!isCountingMode) return []; return activeFolders.filter(folder => folder.eventData?.counting_only?.some(event => !event.isComplete && event.startTime !== 'N/A')); }, [activeFolders, isCountingMode]);
 
-  const totalTracks = useMemo(() => activeFolders.reduce((sum, f) => sum + f.images.length, 0), [activeFolders]);
-  const totalAssignedPersons = useMemo(() => activeFolders.reduce((sum, f) => sum + f.newPeople.length, 0), [activeFolders]);
-  
-  const falseNegativeIndex = useMemo(() => {
-    if (falseNegativeFolders.length === 0) return 0;
-    const totalTracksInFN = falseNegativeFolders.reduce((sum, f) => sum + f.images.length, 0);
-    return totalTracksInFN / falseNegativeFolders.length;
-  }, [falseNegativeFolders]);
+  const totalTracks = useMemo(() => activeFolders.reduce((sum, f) => sum + f.images.length, 0), [activeFolders]);
+  const totalAssignedPersons = useMemo(() => activeFolders.reduce((sum, f) => sum + f.newPeople.length, 0), [activeFolders]);
+  
+  const falseNegativeIndex = useMemo(() => {
+    if (falseNegativeFolders.length === 0) return 0;
+    const totalAssignedPersonsInFN = falseNegativeFolders.reduce((sum, f) => sum + f.newPeople.length, 0);
+    return totalAssignedPersonsInFN / falseNegativeFolders.length;
+  }, [falseNegativeFolders]);
 
-  const falsePositiveIndex = useMemo(() => {
-    if (falsePositiveFolders.length === 0) return 0;
-    const totalTracksInFP = falsePositiveFolders.reduce((sum, folder) => {
-      const linkedOutTracks = folder.newPeople
-        .filter(p => p.linkedFolderUUID)
-        .reduce((count, person) => count + person.assignedTracks.length, 0);
-      return sum + linkedOutTracks;
-    }, 0);
-    return totalTracksInFP / falsePositiveFolders.length;
-  }, [falsePositiveFolders]);
+  const falsePositiveIndex = useMemo(() => {
+    if (falsePositiveFolders.length === 0) return 0;
+    const totalAssignedPersonsInFP = falsePositiveFolders.reduce((sum, folder) => sum + folder.newPeople.length, 0);
+    return totalAssignedPersonsInFP / falsePositiveFolders.length;
+  }, [falsePositiveFolders]);
 
   const reIdAccuracy = useMemo(() => {
-    const denominator = totalAssignedPersons + missedPeopleCount;
-    return denominator > 0 ? (correctFolders.length / denominator) * 100 : 0;
-  }, [correctFolders, totalAssignedPersons, missedPeopleCount]);
+    const denominator = totalAssignedPersons + missedPeopleCount;
+    return denominator > 0 ? (correctFolders.length / denominator) * 100 : 0;
+  }, [correctFolders, totalAssignedPersons, missedPeopleCount]);
 
   let accuracyColor = 'success.main';
   if (reIdAccuracy < 75) accuracyColor = 'error.main'; else if (reIdAccuracy < 85) accuracyColor = 'warning.main';
-  const fnIndexColor = falseNegativeIndex > 3 ? 'error.main' : falseNegativeIndex > 1 ? 'warning.main' : 'text.primary';
-  const fpIndexColor = falsePositiveIndex > 3 ? 'error.main' : falsePositiveIndex > 1 ? 'warning.main' : 'text.primary';
+  const fnIndexColor = falseNegativeIndex > 3 ? 'error.main' : falseNegativeIndex > 1 ? 'warning.main' : 'text.primary';
+  const fpIndexColor = falsePositiveIndex > 3 ? 'error.main' : falsePositiveIndex > 1 ? 'warning.main' : 'text.primary';
   
   const filteredFolders = useMemo(() => {
     return folders.filter(folder => {
@@ -860,7 +855,7 @@ function AppContent({ onToggleTheme, themeMode }) {
             <Typography variant="h4" component="h1" gutterBottom>{TEXTS.title}</Typography>
             <Box>
                 <Tooltip title={TEXTS.userManual}><IconButton onClick={() => setManualOpen(true)} color="inherit"><HelpOutlineIcon /></IconButton></Tooltip>
-                <Tooltip title={TEXTS.history}><IconButton onClick={handleOpenHistory} color="inherit" disabled={history.length === 0}><HistoryIcon /></IconButton></Tooltip>
+                <Tooltip title={TEXTS.history}><IconButton onClick={handleOpenHistory} color="inherit" disabled={history.length === 0}><HistoryIcon /></IconButton></Tooltip>
                 <Tooltip title={TEXTS.settings}><IconButton onClick={handleOpenSettings} color="inherit"><SettingsIcon /></IconButton></Tooltip>
                 <Tooltip title={TEXTS.toggleTheme}><IconButton sx={{ ml: 1 }} onClick={onToggleTheme} color="inherit">{themeMode === 'dark' ? <Brightness7Icon /> : <Brightness4Icon />}</IconButton></Tooltip>
             </Box>
@@ -882,13 +877,13 @@ function AppContent({ onToggleTheme, themeMode }) {
                   <>
                     <Paper sx={{ p: 2, mb: 3 }}>
                       <Grid container spacing={2}>
-                             <StatItem icon={<FolderCopyIcon fontSize="large"/>} label={TEXTS.totalIdentities} tooltipText={TEXTS.totalIdentitiesTooltip} value={<> {activeFolders.length} {(folders.length - activeFolders.length) > 0 && <Typography variant="caption" color="text.secondary" display="block">(Hidden Staff: {folders.length - activeFolders.length})</Typography>} </>} secondaryInfo={totalTracks} />
-                             <StatItem icon={<ReportProblemIcon fontSize="large"/>} label={TEXTS.incompleteFolders} tooltipText={TEXTS.incompleteFoldersTooltip} value={incompleteFolders.length} onClick={() => startNavigation(incompleteFolders)} valueSx={{color: incompleteFolders.length > 0 ? 'error.main' : 'text.primary'}}/>
-                             <StatItem icon={<PercentIcon fontSize="large"/>} label={TEXTS.reIdAccuracy} tooltipText={TEXTS.reIdAccuracyTooltip} value={`${reIdAccuracy.toFixed(2)}%`} valueSx={{color: accuracyColor}}/>
-                             <StatItem icon={<CheckCircleOutlineIcon fontSize="large"/>} label={TEXTS.correctUUIDs} tooltipText={TEXTS.correctUUIDsTooltip} value={correctFolders.length} onClick={() => startNavigation(correctFolders)}/>
-                             <StatItem icon={<CallMergeIcon fontSize="large"/>} label={TEXTS.falseNegativeIndex} tooltipText={TEXTS.falseNegativeIndexTooltip} value={falseNegativeIndex.toFixed(1)} valueSx={{ color: fnIndexColor }} onClick={() => startNavigation(falseNegativeFolders)} />
-                             <StatItem icon={<CallSplitIcon fontSize="large"/>} label={TEXTS.falsePositiveIndex} tooltipText={TEXTS.falsePositiveIndexTooltip} value={falsePositiveIndex.toFixed(1)} valueSx={{ color: fpIndexColor }} onClick={() => startNavigation(falsePositiveFolders)} />
-                             <StatItem icon={<SupervisedUserCircleIcon fontSize="large"/>} label={TEXTS.totalAssignedPersons} tooltipText={TEXTS.totalAssignedPersonsTooltip} value={<> {totalAssignedPersons} {missedPeopleCount > 0 && <Box component="span" sx={{fontSize: '1rem', fontWeight: 'normal'}}> (+{missedPeopleCount})</Box>} </>} onEdit={() => { setMissedPeopleInput(String(missedPeopleCount)); setIsMissedPeopleDialogOpen(true); }}/>
+                             <StatItem icon={<FolderCopyIcon fontSize="large"/>} label={TEXTS.totalIdentities} tooltipText={TEXTS.totalIdentitiesTooltip} value={<> {activeFolders.length} {(folders.length - activeFolders.length) > 0 && <Typography variant="caption" color="text.secondary" display="block">(Hidden Staff: {folders.length - activeFolders.length})</Typography>} </>} secondaryInfo={totalTracks} />
+                             <StatItem icon={<ReportProblemIcon fontSize="large"/>} label={TEXTS.incompleteFolders} tooltipText={TEXTS.incompleteFoldersTooltip} value={incompleteFolders.length} onClick={() => startNavigation(incompleteFolders)} valueSx={{color: incompleteFolders.length > 0 ? 'error.main' : 'text.primary'}}/>
+                             <StatItem icon={<PercentIcon fontSize="large"/>} label={TEXTS.reIdAccuracy} tooltipText={TEXTS.reIdAccuracyTooltip} value={`${reIdAccuracy.toFixed(2)}%`} valueSx={{color: accuracyColor}}/>
+                             <StatItem icon={<CheckCircleOutlineIcon fontSize="large"/>} label={TEXTS.correctUUIDs} tooltipText={TEXTS.correctUUIDsTooltip} value={correctFolders.length} onClick={() => startNavigation(correctFolders)}/>
+                             <StatItem icon={<CallMergeIcon fontSize="large"/>} label={TEXTS.falseNegativeIndex} tooltipText={TEXTS.falseNegativeIndexTooltip} value={falseNegativeIndex.toFixed(1)} valueSx={{ color: fnIndexColor }} onClick={() => startNavigation(falseNegativeFolders)} />
+                             <StatItem icon={<CallSplitIcon fontSize="large"/>} label={TEXTS.falsePositiveIndex} tooltipText={TEXTS.falsePositiveIndexTooltip} value={falsePositiveIndex.toFixed(1)} valueSx={{ color: fpIndexColor }} onClick={() => startNavigation(falsePositiveFolders)} />
+                             <StatItem icon={<SupervisedUserCircleIcon fontSize="large"/>} label={TEXTS.totalAssignedPersons} tooltipText={TEXTS.totalAssignedPersonsTooltip} value={<> {totalAssignedPersons} {missedPeopleCount > 0 && <Box component="span" sx={{fontSize: '1rem', fontWeight: 'normal'}}> (+{missedPeopleCount})</Box>} </>} onEdit={() => { setMissedPeopleInput(String(missedPeopleCount)); setIsMissedPeopleDialogOpen(true); }}/>
                         {isCountingMode && (
                           <>
                             <StatItem icon={<CallMissedIcon fontSize="large" />} label={TEXTS.missingEnterEvents} tooltipText={TEXTS.missingEnterEventsTooltip} value={missingEnterFolders.length} onClick={() => startNavigation(missingEnterFolders)} valueSx={{ color: missingEnterFolders.length > 0 ? 'error.main' : 'text.primary' }} />
@@ -907,8 +902,8 @@ function AppContent({ onToggleTheme, themeMode }) {
                                 <>
                                     <Grid item xs={12} sm={6} md="auto">
                                         <ToggleButtonGroup value={filters.durationFilterType} exclusive onChange={handleDurationFilterTypeChange} aria-label="duration filter type" size="small" >
-                                        {availableDurationFilters.map(modeKey => ( <ToggleButton key={modeKey} value={modeKey} aria-label={modeKey}>{MODE_DEFINITIONS[modeKey].shortName}</ToggleButton> ))}
-                                    </ToggleButtonGroup>
+                                        {availableDurationFilters.map(modeKey => ( <ToggleButton key={modeKey} value={modeKey} aria-label={modeKey}>{MODE_DEFINITIONS[modeKey].shortName}</ToggleButton> ))}
+                                    </ToggleButtonGroup>
                                     </Grid>
                                     <Grid item xs={6} sm={3}><TextField disabled={!filters.durationFilterType} label={TEXTS.durationLessThan} name="durationLessThan" type="number" value={filters.durationLessThan} onChange={handleFilterChange} variant="outlined" size="small" fullWidth/></Grid>
                                     <Grid item xs={6} sm={3}><TextField disabled={!filters.durationFilterType} label={TEXTS.durationMoreThan} name="durationMoreThan" type="number" value={filters.durationMoreThan} onChange={handleFilterChange} variant="outlined" size="small" fullWidth/></Grid>
@@ -959,16 +954,16 @@ function AppContent({ onToggleTheme, themeMode }) {
         <Dialog open={isMissedPeopleDialogOpen} onClose={() => setIsMissedPeopleDialogOpen(false)}><DialogTitle>{TEXTS.adjustTotal}</DialogTitle><DialogContent><DialogContentText>{TEXTS.missedPeopleHelper}</DialogContentText><TextField autoFocus margin="dense" label={TEXTS.missedPeopleLabel} type="number" fullWidth variant="standard" value={missedPeopleInput} onChange={(e) => setMissedPeopleInput(e.target.value)}/></DialogContent><DialogActions><Button onClick={() => setIsMissedPeopleDialogOpen(false)}>{TEXTS.cancel}</Button><Button onClick={handleSaveMissedPeople}>{TEXTS.save}</Button></DialogActions></Dialog>
         <Dialog open={isModeSelectOpen} onClose={() => setIsModeSelectOpen(false)}><DialogTitle>{TEXTS.selectImportMode}</DialogTitle><DialogContent><DialogContentText sx={{mb: 2}}>The following data types were found. Please select which ones to load.</DialogContentText><FormGroup>{availableModes.map(modeKey => { const modeInfo = MODE_DEFINITIONS[modeKey]; return ( <Box key={modeKey} sx={{mb: 1}}><FormControlLabel control={<Checkbox checked={userSelectedModes.has(modeKey)} onChange={handleModeSelectionChange} name={modeKey} />} label={modeInfo.text} /><Typography variant="caption" sx={{display: 'block', pl: 4}}>{modeInfo.description}</Typography></Box> ) })}</FormGroup></DialogContent><DialogActions><Button onClick={() => setIsModeSelectOpen(false)}>{TEXTS.cancel}</Button><Button onClick={handleProceedWithLoading} variant="contained">{TEXTS.proceed}</Button></DialogActions></Dialog>
         <Dialog open={staffConfirmState.isOpen} onClose={handleCloseStaffConfirm}><DialogTitle>{TEXTS.hideStaffConfirmTitle}</DialogTitle><DialogContent><DialogContentText>{TEXTS.hideStaffConfirmContent}</DialogContentText></DialogContent><DialogActions><Button onClick={handleCloseStaffConfirm}>{TEXTS.cancel}</Button><Button onClick={handleConfirmHideStaff} variant="contained" color="warning">{TEXTS.confirm}</Button></DialogActions></Dialog>
-        <Menu anchorEl={historyAnchorEl} open={Boolean(historyAnchorEl)} onClose={handleCloseHistory}>
-            {history.map((item, index) => (
-                <MenuItem key={index} onClick={() => handleRestoreHistory(item)}>
-                    <Box>
-                        <Typography variant="body2" sx={{ fontWeight: 500 }}>{item.rootFolderName}</Typography>
-                        <Typography variant="caption" color="text.secondary">{`Last saved: ${new Date(item.timestamp).toLocaleString()}`}</Typography>
-                    </Box>
-                </MenuItem>
-            ))}
-        </Menu>
+        <Menu anchorEl={historyAnchorEl} open={Boolean(historyAnchorEl)} onClose={handleCloseHistory}>
+            {history.map((item, index) => (
+                <MenuItem key={index} onClick={() => handleRestoreHistory(item)}>
+                    <Box>
+                        <Typography variant="body2" sx={{ fontWeight: 500 }}>{item.rootFolderName}</Typography>
+                        <Typography variant="caption" color="text.secondary">{`Last saved: ${new Date(item.timestamp).toLocaleString()}`}</Typography>
+                    </Box>
+                </MenuItem>
+            ))}
+        </Menu>
         <Menu anchorEl={settingsAnchorEl} open={Boolean(settingsAnchorEl)} onClose={handleCloseSettings} MenuListProps={{ 'aria-labelledby': 'settings-button' }}>
           <MenuItem onClick={(e) => e.stopPropagation()} sx={{ '&:hover': { backgroundColor: 'transparent' } }}><FormControlLabel control={<Switch checked={settings.showFolderInfo} onChange={handleSettingChange} name="showFolderInfo" />} label={TEXTS.showFolderInfo} /></MenuItem>
           <MenuItem onClick={(e) => e.stopPropagation()} sx={{ '&:hover': { backgroundColor: 'transparent' } }}><FormControlLabel control={<Switch checked={settings.autoSelectAll} onChange={handleSettingChange} name="autoSelectAll" />} label={TEXTS.autoSelectAllOnAdd} /></MenuItem>
